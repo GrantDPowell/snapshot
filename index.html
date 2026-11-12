@@ -29,36 +29,36 @@
   .status.live i { background: var(--ink); animation: pulse 2.4s ease-out infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(17,17,17,.35); } 70%, 100% { box-shadow: 0 0 0 7px rgba(17,17,17,0); } }
 
-  #cloud { flex: 1; position: relative; min-height: 420px; overflow: hidden; touch-action: none; cursor: grab; }
+  /* the cloud fills the whole window; header and footer float over it, faded in by the bands below */
+  #cloud { position: fixed; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
+  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 76px; z-index: 1; pointer-events: none; }
+  #cloud::before { top: 0; background: linear-gradient(#fff 35%, rgba(255,255,255,0)); }
+  #cloud::after { bottom: 0; background: linear-gradient(rgba(255,255,255,0), #fff 65%); }
   #cloud.dragging { cursor: grabbing; }
+  header, footer { position: relative; z-index: 2; pointer-events: none; }
+  header > *, footer > * { pointer-events: auto; }
+  footer { margin-top: auto; }
   #layer { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: transform .7s var(--ease); }
-  #cloud.moving #layer { transition: none; }   /* wheel, drag and pinch follow the hand directly */
-  #zoom { position: absolute; right: 0; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 2px; padding: 3px; background: rgba(255,255,255,.9);
-    border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: default; }
-  #zoom button { min-width: 28px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--ink); font: 500 15px/1 var(--ui); cursor: pointer; }
-  #zoom button:hover, #zoom button:focus-visible { background: #f2f2f2; outline: none; }
-  #zoom #zoomFit { font-size: 12px; }
-  #zoom output { min-width: 44px; text-align: center; color: var(--ink2); font-size: 12px; font-variant-numeric: tabular-nums; }
+  /* wheel, drag and pinch follow the hand directly, and scale one cached bitmap instead of re-laying out every word */
+  #cloud.moving #layer { transition: none; will-change: transform; }
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .45; } }
-  /* --fresh runs 1 -> 0 over --fresh-time from a word's first sighting: full accent colour, fading to the usual gray.
-     Words already part-way through are started late with a negative animation-delay (see drawCloud). */
+  /* --fresh goes 1 -> 0 over --fresh-time from a word's first sighting: full accent colour, fading to the usual gray.
+     drawCloud sets it from the word's age on every refresh, so it steps once a minute instead of animating
+     hundreds of words every frame. */
   @property --fresh { syntax: "<number>"; inherits: false; initial-value: 0; }
   :root { --fresh-time: 600s; }
   .word { --c: hsl(0 0% 58%); --accent: hsl(14 90% 52%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
     font-family: var(--display); line-height: 1.05; white-space: nowrap; color: color-mix(in srgb, var(--accent) calc(var(--fresh) * 100%), var(--c)); -webkit-tap-highlight-color: transparent;
-    transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
-  .word.fresh { animation: word-in .6s var(--ease) backwards, fresh var(--fresh-time) linear forwards; }
-  @keyframes fresh { from { --fresh: 1; } to { --fresh: 0; } }
+    transition: transform .7s var(--ease), opacity .25s, color 1s; animation: word-in .6s var(--ease) backwards; }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
   .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ink); outline: none; }
   .word:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
-  @keyframes word-in { from { opacity: 0; scale: .92; filter: blur(3px); } }
-  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; }
-    .word.fresh { animation: fresh var(--fresh-time) linear forwards !important; } }   /* a colour fade isn't motion: keep it */
+  @keyframes word-in { from { opacity: 0; scale: .92; } }   /* no blur: filtering hundreds of words at once stalls the first draw */
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 
   footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0 20px; color: var(--ink2); font-size: 12px; }
   #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; }
@@ -94,17 +94,10 @@
     </div>
     <div id="status" class="status" role="status"><i></i><span>Connecting…</span></div>
   </header>
-  <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p>
-    <div id="zoom" role="group" aria-label="Zoom">
-      <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
-      <output id="zoomLevel" aria-live="polite">100%</output>
-      <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
-      <button type="button" id="zoomFit" title="Back to the starting view (double-click or press 0)">Fit</button>
-    </div>
-  </div>
+  <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
-    <p class="hint">Bigger = mentioned more, in more places · hover a word to see related ones, click for its stories · scroll or pinch to zoom out for the long tail, drag to move</p>
+    <p class="hint">Bigger = mentioned more, in more places · hover a word to see related ones, click for its stories · scroll or pinch to zoom out for the long tail, drag to move, double-click to reset</p>
   </footer>
 </div>
 
@@ -359,13 +352,10 @@ function drawCloud() {
     let el = WORDS.get(t.key);
     if (!el) {
       WORDS.set(t.key, el = wordEl(t)); layer.appendChild(el);
-      const delay = (first ? Math.min(i, 150) * 12 : 0) + 'ms', age = SEEN.get(t.key) ?? Infinity;
-      if (age < FRESH_MS) {   // first seen recently: tinted, and the fade starts `age` ms in, not from zero
-        el.classList.add('fresh');
-        el.style.animationDelay = `${delay}, ${-age}ms`;
-        el.addEventListener('animationend', e => { if (e.animationName === 'fresh') el.classList.remove('fresh'); });
-      } else el.style.animationDelay = delay;
+      el.style.animationDelay = (first ? Math.min(i, 150) * 12 : 0) + 'ms';
     }
+    // first seen recently: tinted, fading toward gray as the word ages (stepped per refresh, see --fresh)
+    el.style.setProperty('--fresh', Math.max(0, 1 - (SEEN.get(t.key) ?? Infinity) / FRESH_MS).toFixed(2));
     const r = Math.pow(t.score / top, 0.8);
     el._t = t; el.textContent = t.label;
     el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
@@ -413,7 +403,9 @@ function drawCloud() {
   const minX = Math.min(...core.map(p => p.x)), maxX = Math.max(...core.map(p => p.x + p.w));
   const minY = Math.min(...core.map(p => p.y)), maxY = Math.max(...core.map(p => p.y + p.h));
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  const fit = Math.min(1.5, (W - 16) / (maxX - minX), (H - 16) / (maxY - minY));
+  // keep the opening view clear of the header and footer floating over the cloud
+  const band = Math.max(document.querySelector('header').getBoundingClientRect().bottom, H - document.querySelector('footer').getBoundingClientRect().top);
+  const fit = Math.min(1.5, (W - 32) / (maxX - minX), (H - 2 * band - 16) / (maxY - minY));
   if (first) layer.style.transition = 'none';          // the first draw appears at its final scale
   fitScale = fit;
   if (!view.moved) Object.assign(view, { s: fit, x: 0, y: 0 });   // once someone has zoomed or dragged, leave their view be
@@ -432,7 +424,6 @@ let fitScale = 1;
 const cloudEl = document.getElementById('cloud');
 function applyView() {
   document.getElementById('layer').style.transform = `translate(${view.x.toFixed(1)}px, ${view.y.toFixed(1)}px) scale(${view.s.toFixed(4)})`;
-  document.getElementById('zoomLevel').textContent = Math.round(view.s / fitScale * 100) + '%';
   const open = document.querySelector('.word[aria-expanded="true"]');
   if (open && !pop.hidden) placePop(open);
 }
@@ -461,7 +452,7 @@ let dragged = false;
 const centroid = pts => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
 const spread = pts => Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
 cloudEl.addEventListener('pointerdown', e => {
-  if (e.button !== 0 || e.target.closest('#zoom')) return;
+  if (e.button !== 0) return;
   if (!pointers.size) dragged = false;
   pointers.set(e.pointerId, fromCentre(e)); starts.set(e.pointerId, fromCentre(e));
 });
@@ -490,11 +481,7 @@ cloudEl.addEventListener('pointerup', release);
 cloudEl.addEventListener('pointercancel', release);
 // the click that ends a drag shouldn't open a word or close an open card
 cloudEl.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
-cloudEl.addEventListener('dblclick', e => { if (!e.target.closest('.word, #zoom')) resetView(); });
-
-document.getElementById('zoomIn').addEventListener('click', () => zoomAt(1.5));
-document.getElementById('zoomOut').addEventListener('click', () => zoomAt(1 / 1.5));
-document.getElementById('zoomFit').addEventListener('click', resetView);
+cloudEl.addEventListener('dblclick', e => { if (!e.target.closest('.word')) resetView(); });
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea')) return;
   if (e.key === '+' || e.key === '=') zoomAt(1.5);
