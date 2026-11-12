@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Tiny backend for Snapshot: serves index.html and proxies sources that
-can't be called from the browser (Reddit, X). Stdlib only.
+can't be called from the browser (Reddit, X, Google Trends). Stdlib only.
 
 Credentials come from the environment, never from the page:
   REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET   (reddit.com/prefs/apps -> "script" or "web app")
   X_BEARER_TOKEN                           (X developer portal; paid API tier)
+  GTRENDS_GEO                              (optional; country code for Google Trends, default US; no key needed)
 Run: python3 server.py   (PORT env var overrides 8765)
 """
-import base64, json, os, threading, time
+import base64, json, os, re, threading, time
+import xml.etree.ElementTree as ET
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
@@ -67,7 +69,31 @@ def x_trends():
     ]
 
 
-ROUTES = {"/api/reddit": reddit, "/api/x": x_trends}
+def google_trends():
+    # Google has no public Trends API; this is the "Daily Search Trends" RSS feed that powers trends.google.com/trending.
+    geo = re.sub(r"[^A-Za-z-]", "", os.environ.get("GTRENDS_GEO", "US")) or "US"
+    req = Request(f"https://trends.google.com/trending/rss?geo={geo}", headers={"User-Agent": "Mozilla/5.0 " + UA})
+    with urlopen(req, timeout=10) as r:
+        root = ET.fromstring(r.read())
+    ns = {"ht": "https://trends.google.com/trending/rss"}
+    items = []
+    for it in root.iterfind(".//item"):
+        title = (it.findtext("title") or "").strip()
+        if not title:
+            continue
+        raw = (it.findtext("ht:approx_traffic", namespaces=ns) or "").strip()
+        m = re.match(r"(\d+)\s*([KM]?)", raw.replace(",", ""), re.I)
+        n = int(m.group(1)) * {"": 1, "K": 1000, "M": 1000000}[m.group(2).upper()] if m else 0
+        items.append({
+            "title": title,
+            "url": "https://www.google.com/search?q=" + quote(title),
+            "meta": f"{raw} searches" if raw else "",
+            "value": n,
+        })
+    return items[:30]
+
+
+ROUTES = {"/api/reddit": reddit, "/api/x": x_trends, "/api/gtrends": google_trends}
 
 
 def cached(path):

@@ -113,9 +113,10 @@ const SOURCES = [
       const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=30`);
       return j.items.map(r => ({ title: `${r.full_name}${r.description ? ' — ' + r.description : ''}`, url: r.html_url, meta: '★ ' + fmt(r.stargazers_count), value: r.stargazers_count }));
   }},
-  // Reddit and X go through server.py (they need credentials the browser must not hold).
+  // Reddit, X and Google Trends go through server.py (credentials the browser must not hold, or no CORS).
   { id: 'reddit', name: 'Reddit', load: () => getJSON('/api/reddit') },
   { id: 'x', name: 'X', load: () => getJSON('/api/x') },
+  { id: 'gtrends', name: 'Google Trends', load: () => getJSON('/api/gtrends') },
   { id: 'masto', name: 'Mastodon', async load() {
       const j = await getJSON('https://mastodon.social/api/v1/trends/links?limit=30');
       return j.map(l => { const n = l.history.slice(0, 2).reduce((s, d) => s + Number(d.uses), 0); return { title: l.title || l.url, url: l.url, meta: fmt(n) + ' posts', value: n }; });
