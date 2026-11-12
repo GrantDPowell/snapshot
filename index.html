@@ -293,14 +293,14 @@ function drawCloud() {
     if (!el) { WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el); }
     const r = Math.pow(t.score / top, 0.85);
     el._t = t; el.textContent = t.label;
-    el.style.fontSize = ((narrow ? 16 : 13) + 64 * r).toFixed(1) + 'px';
+    el.style.fontSize = (narrow ? 18 + 40 * r : 13 + 64 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
     el.style.fontWeight = Math.round(500 + 150 * r);
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
     el.style.setProperty('--c', `hsl(0 0% ${(62 - 52 * Math.sqrt(r)).toFixed(0)}%)`);   // bigger = darker gray
     return el;
   });
 
-  const aspect = Math.max(0.7, Math.min(2.4, W / H));
+  const aspect = Math.max(0.5, Math.min(2.4, W / H));
   const gx = 5, gy = 2, placed = [];
   for (const el of els) {
     const w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
@@ -317,10 +317,12 @@ function drawCloud() {
   const minY = Math.min(...placed.map(p => p.y)), maxY = Math.max(...placed.map(p => p.y + p.h));
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const fit = Math.min(1.5, (W - 16) / (maxX - minX), (H - 16) / (maxY - minY));
+  if (first) layer.style.transition = 'none';          // the first draw appears at its final scale
   layer.style.transform = `scale(${fit.toFixed(3)})`;
   for (const p of placed) p.el.style.transform = `translate(${(p.x - cx + gx).toFixed(1)}px, ${(p.y - cy + gy).toFixed(1)}px)`;
   layer.offsetWidth;                                   // new words start in place; only existing ones glide
   for (const el of els) el.classList.remove('new');
+  layer.style.transition = '';
 }
 let resizeTimer;
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (pop.hidden) drawCloud(); }, 200); });
