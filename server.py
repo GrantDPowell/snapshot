@@ -111,6 +111,40 @@ def google_trends():
 
 ROUTES = {"/api/reddit": reddit, "/api/x": x_trends, "/api/gtrends": google_trends}
 
+# ---- first-seen times for cloud words, shared by every visitor (so "new" means new to the server, not to one page load)
+SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen.json")
+SEEN_FORGET = 7 * 86400   # drop a word after a week of not being sent, so it counts as new if it ever returns
+_seen, _seen_lock = None, threading.Lock()   # key -> [first_seen_ms, last_seen_ms]
+
+
+def mark_seen(keys):
+    """Record these words and return {key: first_seen_ms}. The very first batch on an empty store is the baseline:
+    those words get first_seen 0 (already old), otherwise a fresh install would paint the whole cloud as new."""
+    global _seen
+    now = int(time.time() * 1000)
+    with _seen_lock:
+        if _seen is None:
+            try:
+                with open(SEEN_FILE) as f:
+                    _seen = json.load(f)
+            except (OSError, ValueError):
+                _seen = {}
+        baseline = not _seen
+        for k in keys:
+            if k in _seen:
+                _seen[k][1] = now
+            else:
+                _seen[k] = [0 if baseline else now, now]
+        for k in [k for k, v in _seen.items() if now - v[1] > SEEN_FORGET * 1000]:
+            del _seen[k]
+        try:
+            with open(SEEN_FILE + ".tmp", "w") as f:
+                json.dump(_seen, f)
+            os.replace(SEEN_FILE + ".tmp", SEEN_FILE)
+        except OSError:
+            pass   # in-memory tracking still works if the disk doesn't
+        return {k: _seen[k][0] for k in keys}
+
 
 def cached(path):
     with _lock:
@@ -131,6 +165,17 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def do_POST(self):
+        if self.path.split("?")[0] != "/api/seen":
+            return self.send_error(404)
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            keys = json.loads(self.rfile.read(min(n, 100_000)))["keys"]
+            keys = list({k for k in keys if isinstance(k, str) and 0 < len(k) <= 60})[:500]
+        except (ValueError, KeyError, TypeError):
+            return self.send_json(400, {"error": "expected {\"keys\": [strings]}"})
+        self.send_json(200, mark_seen(keys))
 
     def do_GET(self):
         path = self.path.split("?")[0]
