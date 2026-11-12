@@ -46,7 +46,7 @@ def reddit():
         headers={"Authorization": f"Bearer {_reddit_token['value']}"},
     )
     return [
-        {"title": p["title"], "url": "https://reddit.com" + p["permalink"], "meta": f"r/{p['subreddit']} · {p['ups']}", "value": p["ups"]}
+        {"title": p["title"], "url": "https://reddit.com" + p["permalink"], "meta": f"r/{p['subreddit']} · {p['ups']}", "value": p["ups"], "time": p["created_utc"]}
         for p in (c["data"] for c in d["data"]["children"])
     ]
 
