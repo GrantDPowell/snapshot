@@ -6,98 +6,211 @@
 <title>Snapshot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..600&family=Inter+Tight:wght@500..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Unbounded:wght@300..800&family=JetBrains+Mono:wght@300..600&display=swap">
 <style>
+  /* ---- SNAPSHOT // 2099 ----
+     Performance rule: only the sky behind the cloud animates, and only with transform/opacity (compositor-only).
+     Words never animate per frame; the tilt and the cursor light move whole layers, so hundreds of words stay smooth. */
   :root {
-    color-scheme: light;
-    --ink: #111; --ink2: #6f6f6f; --ink3: #a8a8a8; --line: #ececec;
-    --ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-    --display: "Inter Tight", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+    --void: #020309;
+    --ink: #f1f4ff; --ink2: rgba(214, 224, 255, .64); --ink3: rgba(160, 178, 230, .4);
+    /* pearl spectrum: mint, periwinkle, lilac, rose, champagne */
+    --p1: #b9fff0; --p2: #a8c2ff; --p3: #d9b8ff; --p4: #ffc6e3; --p5: #fff1c2;
+    --spectrum: linear-gradient(100deg, var(--p1), var(--p2) 30%, var(--p3) 55%, var(--p4) 78%, var(--p5));
+    --signal: #7dffd4;   /* "new" words, live dots */
+    --glass: rgba(9, 12, 28, .6); --hair: rgba(190, 210, 255, .14);
+    --ui: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --brand: "Unbounded", "Space Grotesk", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
     --ease: cubic-bezier(.2, .7, .2, 1);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #fff; color: var(--ink); font: 13px/1.45 var(--ui); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  ::selection { background: rgba(185, 255, 240, .25); color: #fff; }
+  html { background: var(--void); }
+  /* body stays transparent: an opaque body would paint over #sky, which sits at z-index -1 */
+  body { margin: 0; background: transparent; color: var(--ink); font: 13px/1.45 var(--ui); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   .wrap { max-width: 1360px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 40px); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 
-  header { display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; padding: 22px 0 0; }
-  .brand { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
-  h1 { margin: 0; font: 600 17px/1 var(--display); letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
-  h1::before { content: ""; width: 11px; height: 11px; border-radius: 50%; border: 3px solid var(--ink); }
-  .brand p { margin: 0; color: var(--ink2); }
-  .status { display: flex; align-items: center; gap: 8px; color: var(--ink2); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink3); }
-  .status.live i { background: var(--ink); animation: pulse 2.4s ease-out infinite; }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(17,17,17,.35); } 70%, 100% { box-shadow: 0 0 0 7px rgba(17,17,17,0); } }
+  /* ---- the sky: deep void, slow aurora, two star depths, and the halo turning behind everything ---- */
+  #sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+    background: radial-gradient(120% 90% at 50% 46%, #0b1233 0%, #050820 38%, var(--void) 78%); }
+  #sky .aurora { position: absolute; inset: -40%; will-change: transform; animation: drift 54s ease-in-out infinite alternate;
+    background:
+      radial-gradient(closest-side at 30% 36%, rgba(90, 120, 255, .22), transparent 72%),
+      radial-gradient(closest-side at 70% 30%, rgba(190, 120, 255, .16), transparent 72%),
+      radial-gradient(closest-side at 55% 70%, rgba(80, 255, 220, .1), transparent 72%); }
+  #sky .aurora.b { animation-duration: 71s; animation-direction: alternate-reverse; mix-blend-mode: screen;
+    background:
+      radial-gradient(closest-side at 64% 64%, rgba(255, 150, 210, .1), transparent 70%),
+      radial-gradient(closest-side at 32% 70%, rgba(255, 230, 170, .07), transparent 70%); }
+  @keyframes drift { from { transform: translate3d(-5%, -3%, 0) rotate(-6deg) scale(1); } to { transform: translate3d(5%, 4%, 0) rotate(9deg) scale(1.16); } }
+  #sky .stars { position: absolute; inset: 0; will-change: opacity; animation: twinkle 8s ease-in-out infinite alternate;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 64% 8%, #d8ecff 50%, transparent 51%),
+      radial-gradient(1.4px 1.4px at 38% 46%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 86% 34%, #efe2ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 22% 78%, #fff 50%, transparent 51%), radial-gradient(1.4px 1.4px at 74% 62%, #d9fff6 50%, transparent 51%),
+      radial-gradient(1px 1px at 52% 88%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 94% 82%, #ffe4f2 50%, transparent 51%);
+    background-size: 440px 400px; }
+  #sky .stars.far { background-size: 230px 270px; background-position: 90px 140px; animation-duration: 13s; animation-direction: alternate-reverse; }
+  @keyframes twinkle { from { opacity: .15; } to { opacity: .55; } }
+  /* the halo: a thin iridescent ring, wide soft bloom inside it, opening at load and then turning forever */
+  #sky .halo { position: absolute; left: 50%; top: 50%; width: min(86vmin, 920px); aspect-ratio: 1; translate: -50% -50%;
+    animation: iris 2.4s var(--ease) both; }
+  #sky .halo::before, #sky .halo::after { content: ""; position: absolute; inset: 0; border-radius: 50%; will-change: transform; }
+  #sky .halo::before { animation: spin 90s linear infinite;
+    background: conic-gradient(from 0deg, var(--p1), var(--p2), var(--p3), var(--p4), var(--p5), rgba(255, 241, 194, 0) 62%, rgba(185, 255, 240, 0) 80%, var(--p1));
+    -webkit-mask: radial-gradient(closest-side, transparent 97.2%, #000 97.8%, #000 98.6%, transparent 99.4%);
+            mask: radial-gradient(closest-side, transparent 97.2%, #000 97.8%, #000 98.6%, transparent 99.4%);
+    opacity: .75; filter: drop-shadow(0 0 10px rgba(200, 220, 255, .45)); }
+  #sky .halo::after { animation: spin 140s linear infinite reverse; opacity: .5;
+    background: conic-gradient(from 120deg, rgba(185, 255, 240, .16), rgba(168, 194, 255, .05), rgba(217, 184, 255, .16), rgba(255, 198, 227, .04), rgba(185, 255, 240, .16));
+    -webkit-mask: radial-gradient(closest-side, transparent 62%, #000 86%, transparent 97%);
+            mask: radial-gradient(closest-side, transparent 62%, #000 86%, transparent 97%); }
+  @keyframes iris { from { opacity: 0; scale: .55; } }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  /* static finish: film grain and a vignette pulling the eye to the centre */
+  #sky::before { content: ""; position: absolute; inset: 0; z-index: 2; background: radial-gradient(115% 90% at 50% 48%, transparent 52%, rgba(0, 0, 0, .7) 100%); }
+  #sky::after { content: ""; position: absolute; inset: 0; z-index: 3; opacity: .08; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
-  /* the cloud fills the whole window; header and footer float over it, faded in by the bands below */
+  /* ---- HUD: hairline corner brackets and live read-outs ---- */
+  .corner { position: fixed; z-index: 3; width: 22px; height: 22px; pointer-events: none; border: 0 solid rgba(200, 220, 255, .32); }
+  .corner.tl { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
+  .corner.tr { top: 12px; right: 12px; border-width: 1px 1px 0 0; }
+  .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 1px 1px; }
+  .corner.br { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+
+  /* ---- header ---- */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 10px 20px; flex-wrap: wrap; padding: 24px 0 0; }
+  .brand { display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; }
+  h1 { margin: 0; display: flex; align-items: center; gap: 13px; font: 300 14px/1 var(--brand); letter-spacing: .5em; text-transform: uppercase; }
+  h1 .t { background: var(--spectrum); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  /* the mark: a pearl ring turning around a still point */
+  .mark { position: relative; width: 20px; height: 20px; flex: none; }
+  .mark::before { content: ""; position: absolute; inset: 0; border-radius: 50%; will-change: transform; animation: spin 6s linear infinite;
+    background: conic-gradient(var(--p1), var(--p2), var(--p3), var(--p4), var(--p5), rgba(255, 241, 194, 0) 75%, var(--p1));
+    -webkit-mask: radial-gradient(closest-side, transparent 72%, #000 78%); mask: radial-gradient(closest-side, transparent 72%, #000 78%); }
+  .mark::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px 1px rgba(200, 230, 255, .9); }
+  .brand p { margin: 0; color: var(--ink3); font: 400 10px/1.4 var(--mono); letter-spacing: .24em; text-transform: uppercase; }
+  .status { display: flex; align-items: center; gap: 9px; padding: 7px 13px 7px 11px; border-radius: 999px; color: var(--ink2);
+    background: var(--glass); border: 1px solid var(--hair); -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+    font: 400 10px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink3); }
+  .status.live { color: var(--ink); }
+  .status.live i { background: var(--signal); box-shadow: 0 0 10px var(--signal); animation: pulse 2.6s ease-out infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 10px var(--signal), 0 0 0 0 rgba(125, 255, 212, .5); } 70%, 100% { box-shadow: 0 0 10px var(--signal), 0 0 0 9px rgba(125, 255, 212, 0); } }
+
+  /* ---- the cloud fills the whole window; header and footer float over it, faded in by dark bands ---- */
   #cloud { position: fixed; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
-  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 76px; z-index: 1; pointer-events: none; }
-  #cloud::before { top: 0; background: linear-gradient(#fff 35%, rgba(255,255,255,0)); }
-  #cloud::after { bottom: 0; background: linear-gradient(rgba(255,255,255,0), #fff 65%); }
+  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 96px; z-index: 2; pointer-events: none; }
+  #cloud::before { top: 0; background: linear-gradient(rgba(2, 3, 9, .9) 25%, rgba(2, 3, 9, 0)); }
+  #cloud::after { bottom: 0; background: linear-gradient(rgba(2, 3, 9, 0), rgba(2, 3, 9, .9) 75%); }
   #cloud.dragging { cursor: grabbing; }
-  header, footer { position: relative; z-index: 2; pointer-events: none; }
+  header, footer { position: relative; z-index: 4; pointer-events: none; }
   header > *, footer > * { pointer-events: auto; }
   footer { margin-top: auto; }
+  /* the whole cloud floats: it leans a few degrees toward the pointer, as one cached layer */
+  #tilt { position: absolute; inset: 0; will-change: transform; transition: transform 1.2s var(--ease); }
   #layer { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: transform .7s var(--ease); }
   /* wheel, drag and pinch follow the hand directly, and scale one cached bitmap instead of re-laying out every word */
   #cloud.moving #layer { transition: none; will-change: transform; }
-  .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
+  /* the pointer is a light: a soft pearl glow that brightens whatever words it passes over */
+  #lens { position: absolute; left: 0; top: 0; z-index: 1; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%; pointer-events: none;
+    opacity: 0; mix-blend-mode: screen; will-change: transform, opacity; transition: opacity .6s;
+    background: radial-gradient(closest-side, rgba(200, 225, 255, .2), rgba(185, 255, 240, .07) 45%, transparent 72%); }
+  #cloud.lit #lens { opacity: 1; }
+  .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink2);
+    font: 300 11px var(--mono); letter-spacing: .5em; text-transform: uppercase; animation: breathe 1.4s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
-  @keyframes breathe { to { opacity: .45; } }
-  /* --fresh goes 1 -> 0 over --fresh-time from a word's first sighting: full accent colour, fading to the usual gray.
-     drawCloud sets it from the word's age on every refresh, so it steps once a minute instead of animating
-     hundreds of words every frame. */
+  @keyframes breathe { to { opacity: .3; } }
+
+  /* ---- words ----
+     --r (0..1, set by drawCloud) is a word's strength: faint hairline steel in the long tail, bright and heavy at the top.
+     --fresh goes 1 -> 0 over --fresh-time from a word's first sighting: signal mint fading into its usual colour.
+     drawCloud sets both on every refresh, so they step once a minute instead of animating every word every frame. */
   @property --fresh { syntax: "<number>"; inherits: false; initial-value: 0; }
   :root { --fresh-time: 600s; }
-  .word { --c: hsl(0 0% 58%); --accent: hsl(14 90% 52%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
-    font-family: var(--display); line-height: 1.05; white-space: nowrap; color: color-mix(in srgb, var(--accent) calc(var(--fresh) * 100%), var(--c)); -webkit-tap-highlight-color: transparent;
-    transition: transform .7s var(--ease), opacity .25s, color 1s; animation: word-in .6s var(--ease) backwards; }
+  .word { --r: 0; --lo: rgb(120 138 190 / .58); --hi: #f4f7ff;
+    position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
+    font-family: var(--display); line-height: 1.05; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+    color: color-mix(in oklab, var(--signal) calc(var(--fresh) * 100%), color-mix(in oklab, var(--hi) calc(var(--r) * 100%), var(--lo)));
+    transition: transform .7s var(--ease), opacity .25s, color 1s, text-shadow .2s, filter .2s; animation: word-in .6s var(--ease) backwards; }
+  /* the strongest words are pearl holograms, washed toward signal mint while fresh */
+  .word.top { color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(100deg, color-mix(in oklab, var(--signal) calc(var(--fresh) * 100%), #ffffff) 0%, var(--p1) 22%, var(--p2) 44%, var(--p3) 66%, var(--p4) 86%, var(--p5));
+    filter: drop-shadow(0 0 16px rgba(170, 200, 255, .22)); }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
-  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ink); outline: none; }
-  .word:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
-  @keyframes word-in { from { opacity: 0; scale: .92; } }   /* no blur: filtering hundreds of words at once stalls the first draw */
-  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+  /* hover: the word splits into its colours, like light through a prism */
+  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: #fff; outline: none;
+    text-shadow: -.06em 0 0 rgba(120, 255, 230, .55), .06em 0 0 rgba(255, 140, 210, .55), 0 0 22px rgba(190, 220, 255, .55); }
+  .word.top:hover, .word.top:focus-visible, .word.top[aria-expanded="true"] { color: transparent; text-shadow: none;
+    filter: drop-shadow(-2px 0 0 rgba(120, 255, 230, .45)) drop-shadow(2px 0 0 rgba(255, 140, 210, .45)) drop-shadow(0 0 22px rgba(200, 225, 255, .55)); }
+  .word:focus-visible { outline: 1px solid var(--p1); outline-offset: 4px; }
+  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .1; }
+  #cloud.focus .word.rel:not(.top):not([aria-expanded="true"]) { color: var(--p1); }
+  @keyframes word-in { from { opacity: 0; scale: .9; } }   /* no blur: filtering hundreds of words at once stalls the first draw */
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
-  footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0 20px; color: var(--ink2); font-size: 12px; }
-  #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; }
-  #sources li { display: flex; align-items: center; gap: 6px; }
-  #sources li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
-  #sources li:not(.ok) { color: var(--ink3); }
-  #sources li:not(.ok)::before { background: none; border: 1px solid var(--ink3); }
+  /* ---- footer: sources as hairline chips, plus the read-out ---- */
+  footer { display: flex; align-items: center; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; padding: 12px 0 24px; color: var(--ink2); }
+  #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+  #sources li { display: flex; align-items: center; gap: 7px; padding: 5px 10px 5px 9px; border-radius: 999px; background: rgba(8, 11, 26, .72); border: 1px solid var(--hair);
+    font: 400 9.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink2); }
+  #sources li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 8px var(--signal); }
+  #sources li:not(.ok) { color: var(--ink3); border-color: rgba(190, 210, 255, .07); }
+  #sources li:not(.ok)::before { background: none; box-shadow: none; border: 1px solid var(--ink3); }
   #sources li.err { text-decoration: line-through; }
-  .hint { margin: 0; color: var(--ink3); }
+  #sources li.err::before { border-color: var(--p4); }
+  .readout { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin: 0; color: var(--ink3); font: 400 9.5px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; text-align: right; }
+  .readout b { color: var(--ink2); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .hint { opacity: .8; letter-spacing: .06em; text-transform: none; }
+  @media (max-width: 640px) { .readout { align-items: flex-start; text-align: left; } }
 
-  #pop { position: fixed; z-index: 10; width: 360px; max-width: calc(100vw - 16px); background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 16px 44px -10px rgba(0,0,0,.2); padding: 14px 8px 8px; animation: pop-in .16s var(--ease); }
+  /* ---- story card: frosted glass with a pearl edge ---- */
+  #pop { position: fixed; z-index: 10; width: 380px; max-width: calc(100vw - 16px); padding: 16px 8px 8px; border-radius: 18px; color: var(--ink);
+    background: linear-gradient(180deg, rgba(20, 26, 58, .74), rgba(6, 8, 22, .88));
+    -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: 0 34px 90px -26px rgba(0, 0, 0, .95), 0 0 80px -20px rgba(170, 200, 255, .3); animation: pop-in .2s var(--ease); }
+  #pop::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: .55;
+    background: linear-gradient(135deg, var(--p1), rgba(168, 194, 255, .15) 40%, rgba(217, 184, 255, .15) 60%, var(--p4));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+  #pop.pinned::before { opacity: 1; }
   #pop[hidden] { display: none; }
-  #pop.pinned { border-color: rgba(0,0,0,.22); }
-  @keyframes pop-in { from { opacity: 0; translate: 0 4px; } }
-  #pop .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 8px 8px; color: var(--ink2); font-size: 12px; white-space: nowrap; }
-  #pop .ph b { color: var(--ink); font: 600 18px/1.2 var(--display); letter-spacing: -.02em; white-space: normal; overflow-wrap: anywhere; }
+  @keyframes pop-in { from { opacity: 0; translate: 0 6px; scale: .98; } }
+  #pop .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 8px 10px; white-space: nowrap;
+    color: var(--ink3); font: 400 9.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  #pop .ph b { font: 500 21px/1.2 var(--display); letter-spacing: -.01em; text-transform: none; white-space: normal; overflow-wrap: anywhere;
+    background: var(--spectrum); -webkit-background-clip: text; background-clip: text; color: transparent; }
   #pop ul { list-style: none; margin: 0; padding: 0; }
-  #pop li a { display: block; padding: 7px 8px; border-radius: 8px; color: var(--ink); text-decoration: none; transition: background .12s; }
-  #pop li a:hover, #pop li a:focus-visible { background: #f5f5f5; outline: none; }
-  #pop li span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; line-height: 1.35; }
-  #pop li small { display: block; margin-top: 3px; color: var(--ink2); font-size: 11px; }
-  #pop li small b { font-weight: 600; letter-spacing: .05em; text-transform: uppercase; font-size: 10px; }
-  #pop .more { padding: 6px 8px 4px; color: var(--ink3); font-size: 11px; }
+  #pop li a { display: block; padding: 8px 10px; border-radius: 10px; color: var(--ink); text-decoration: none; transition: background .15s, box-shadow .15s; }
+  #pop li a:hover, #pop li a:focus-visible { background: rgba(185, 255, 240, .06); box-shadow: inset 2px 0 0 var(--p1); outline: none; }
+  #pop li span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; line-height: 1.38; }
+  #pop li small { display: block; margin-top: 4px; color: var(--ink3); font: 400 10px/1.3 var(--mono); }
+  #pop li small b { color: var(--p1); font-weight: 500; letter-spacing: .12em; text-transform: uppercase; font-size: 9px; }
+  #pop .more { padding: 6px 10px 4px; color: var(--ink3); font: 400 10px var(--mono); letter-spacing: .08em; }
 </style>
 </head>
 <body>
+<div id="sky" aria-hidden="true"><div class="aurora"></div><div class="aurora b"></div><div class="stars far"></div><div class="stars"></div><div class="halo"></div></div>
+<div class="corner tl" aria-hidden="true"></div><div class="corner tr" aria-hidden="true"></div><div class="corner bl" aria-hidden="true"></div><div class="corner br" aria-hidden="true"></div>
 <div class="wrap">
   <header>
     <div class="brand">
-      <h1>Snapshot</h1>
-      <p>What the internet is talking about, right now</p>
+      <h1><span class="mark" aria-hidden="true"></span><span class="t">Snapshot</span></h1>
+      <p>Live signal · what the internet is talking about</p>
     </div>
     <div id="status" class="status" role="status"><i></i><span>Connecting…</span></div>
   </header>
-  <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
+  <div id="cloud"><div id="tilt"><div id="layer"></div></div><div id="lens"></div><p id="msg" class="msg">Acquiring signal…</p></div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
-    <p class="hint">Bigger = mentioned more, in more places · hover a word to see related ones, click for its stories · scroll or pinch to zoom out for the long tail, drag to move, double-click to reset</p>
+    <div class="readout">
+      <span><b id="roTerms">0</b> terms · zoom <b id="roZoom">1.00×</b></span>
+      <span class="hint">Scroll or pinch to zoom · drag to move · double-click to reset · click a word for its stories</span>
+    </div>
   </footer>
 </div>
 
@@ -359,7 +472,9 @@ function drawCloud() {
     const r = Math.pow(t.score / top, 0.8);
     el._t = t; el.textContent = t.label;
     el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
-    el.style.fontWeight = Math.round(500 + 100 * r);
+    el.style.fontWeight = Math.round(300 + 400 * r);   // hairline long tail up to heavy headliners
+    el.style.setProperty('--r', r.toFixed(3));
+    el.classList.toggle('top', i < (narrow ? 8 : 14));  // the headliners render as pearl holograms
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
     return el;
   });
@@ -408,6 +523,7 @@ function drawCloud() {
   const fit = Math.min(1.5, (W - 32) / (maxX - minX), (H - 2 * band - 16) / (maxY - minY));
   if (first) layer.style.transition = 'none';          // the first draw appears at its final scale
   fitScale = fit;
+  document.getElementById('roTerms').textContent = placed.length;
   if (!view.moved) Object.assign(view, { s: fit, x: 0, y: 0 });   // once someone has zoomed or dragged, leave their view be
   applyView();
   for (const p of placed) p.el.style.transform = `translate(${(p.x - cx + gx).toFixed(1)}px, ${(p.y - cy + gy).toFixed(1)}px)`;
@@ -424,6 +540,7 @@ let fitScale = 1;
 const cloudEl = document.getElementById('cloud');
 function applyView() {
   document.getElementById('layer').style.transform = `translate(${view.x.toFixed(1)}px, ${view.y.toFixed(1)}px) scale(${view.s.toFixed(4)})`;
+  document.getElementById('roZoom').textContent = (view.s / fitScale).toFixed(2) + '×';
   const open = document.querySelector('.word[aria-expanded="true"]');
   if (open && !pop.hidden) placePop(open);
 }
@@ -482,6 +599,26 @@ cloudEl.addEventListener('pointercancel', release);
 // the click that ends a drag shouldn't open a word or close an open card
 cloudEl.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
 cloudEl.addEventListener('dblclick', e => { if (!e.target.closest('.word')) resetView(); });
+
+// floating: the cloud leans a few degrees toward the pointer, which carries a soft light (mouse only: touch has no hover).
+// Both move whole layers once per frame at most, so the words underneath never re-render.
+if (matchMedia('(hover: hover) and (pointer: fine)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const tiltEl = document.getElementById('tilt'), lens = document.getElementById('lens');
+  let frame = 0, last = null;
+  cloudEl.addEventListener('pointermove', e => {
+    last = e;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const r = cloudEl.getBoundingClientRect(), x = last.clientX - r.left, y = last.clientY - r.top;
+      const nx = x / r.width - 0.5, ny = y / r.height - 0.5;
+      tiltEl.style.transform = `perspective(1600px) rotateX(${(-ny * 5).toFixed(2)}deg) rotateY(${(nx * 7).toFixed(2)}deg)`;
+      lens.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+      cloudEl.classList.add('lit');
+    });
+  });
+  cloudEl.addEventListener('pointerleave', () => { cloudEl.classList.remove('lit'); tiltEl.style.transform = ''; });
+}
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea')) return;
   if (e.key === '+' || e.key === '=') zoomAt(1.5);
@@ -512,7 +649,7 @@ function summarize() {
 summarize();
 
 const fontReady = Promise.race([
-  document.fonts.load('600 20px "Inter Tight"').catch(() => {}),
+  document.fonts.load('600 20px "Space Grotesk"').catch(() => {}),
   new Promise(r => setTimeout(r, 1500)),
 ]);
 document.fonts.addEventListener('loadingdone', () => { if (pop.hidden) drawCloud(); });
