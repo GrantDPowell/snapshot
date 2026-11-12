@@ -44,7 +44,7 @@ def reddit():
         )
         _reddit_token.update(value=tok["access_token"], expires=time.time() + tok.get("expires_in", 3600))
     d = http_json(
-        "https://oauth.reddit.com/r/all/hot?limit=30&raw_json=1",
+        "https://oauth.reddit.com/r/all/hot?limit=100&raw_json=1",
         headers={"Authorization": f"Bearer {_reddit_token['value']}"},
     )
     return [
@@ -172,7 +172,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length", 0))
             keys = json.loads(self.rfile.read(min(n, 100_000)))["keys"]
-            keys = list({k for k in keys if isinstance(k, str) and 0 < len(k) <= 60})[:500]
+            keys = list({k for k in keys if isinstance(k, str) and 0 < len(k) <= 60})[:1000]
         except (ValueError, KeyError, TypeError):
             return self.send_json(400, {"error": "expected {\"keys\": [strings]}"})
         self.send_json(200, mark_seen(keys))

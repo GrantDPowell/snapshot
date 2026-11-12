@@ -29,8 +29,16 @@
   .status.live i { background: var(--ink); animation: pulse 2.4s ease-out infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(17,17,17,.35); } 70%, 100% { box-shadow: 0 0 0 7px rgba(17,17,17,0); } }
 
-  #cloud { flex: 1; position: relative; min-height: 420px; overflow: hidden; }
+  #cloud { flex: 1; position: relative; min-height: 420px; overflow: hidden; touch-action: none; cursor: grab; }
+  #cloud.dragging { cursor: grabbing; }
   #layer { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: transform .7s var(--ease); }
+  #cloud.moving #layer { transition: none; }   /* wheel, drag and pinch follow the hand directly */
+  #zoom { position: absolute; right: 0; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 2px; padding: 3px; background: rgba(255,255,255,.9);
+    border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: default; }
+  #zoom button { min-width: 28px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--ink); font: 500 15px/1 var(--ui); cursor: pointer; }
+  #zoom button:hover, #zoom button:focus-visible { background: #f2f2f2; outline: none; }
+  #zoom #zoomFit { font-size: 12px; }
+  #zoom output { min-width: 44px; text-align: center; color: var(--ink2); font-size: 12px; font-variant-numeric: tabular-nums; }
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .45; } }
@@ -86,10 +94,17 @@
     </div>
     <div id="status" class="status" role="status"><i></i><span>Connecting…</span></div>
   </header>
-  <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
+  <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p>
+    <div id="zoom" role="group" aria-label="Zoom">
+      <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
+      <output id="zoomLevel" aria-live="polite">100%</output>
+      <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+      <button type="button" id="zoomFit" title="Back to the starting view (double-click or press 0)">Fit</button>
+    </div>
+  </div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
-    <p class="hint">Bigger = mentioned more, in more places · hover a word to see related ones, click for its stories</p>
+    <p class="hint">Bigger = mentioned more, in more places · hover a word to see related ones, click for its stories · scroll or pinch to zoom out for the long tail, drag to move</p>
   </footer>
 </div>
 
@@ -111,13 +126,13 @@ const getJSON = async url => {
 // Each source returns [{title, url, meta, value?}]. value (optional) is the popularity count.
 const SOURCES = [
   { id: 'hn', name: 'Hacker News', async load() {
-      const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 30);
+      const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 100);
       const items = await Promise.all(ids.map(id => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
       return items.filter(Boolean).map(i => ({ title: i.title, url: i.url || `https://news.ycombinator.com/item?id=${i.id}`, meta: `${i.score} pts · ${ago(i.time)}`, value: i.score }));
   }},
   { id: 'gh', name: 'GitHub', async load() {
       const since = new Date(Date.now() - 7*864e5).toISOString().slice(0, 10);
-      const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=30`);
+      const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=100`);
       return j.items.map(r => ({ title: `${r.full_name}${r.description ? ' — ' + r.description : ''}`, url: r.html_url, meta: '★ ' + fmt(r.stargazers_count), value: r.stargazers_count }));
   }},
   // Reddit, X and Google Trends go through server.py (credentials the browser must not hold, or no CORS).
@@ -136,7 +151,7 @@ const SOURCES = [
       const d = new Date(Date.now() - 864e5);
       const p = n => String(n).padStart(2, '0');
       const j = await getJSON(`https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`);
-      return j.items[0].articles.filter(a => !/^(Main_Page|Special:|Wikipedia:|Portal:|-)/.test(a.article)).slice(0, 30)
+      return j.items[0].articles.filter(a => !/^(Main_Page|Special:|Wikipedia:|Portal:|-)/.test(a.article)).slice(0, 200)
         .map(a => ({ title: a.article.replace(/_/g, ' '), url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(a.article), meta: fmt(a.views) + ' views', value: a.views }));
   }},
 ];
@@ -249,10 +264,10 @@ async function buildCloud() {
     });
   }
   // keep anything seen twice, or a word from a feed's stronger stories; boost by spread
-  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.45);
+  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.4);
   for (const t of list) { t.score *= 1 + 0.5 * (t.sources.size - 1); t.items.sort((a, b) => b.w - a.w); }
   list.sort((a, b) => b.score - a.score);
-  list = list.slice(0, 220);
+  list = list.slice(0, 1000);
   // fuse neighbours that always appear together ("Jensen" + "Huang" -> "Jensen Huang")
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
@@ -266,7 +281,7 @@ async function buildCloud() {
       list.splice(j, 1); j--;
     }
   }
-  lastList = list.slice(0, 180);
+  lastList = list.slice(0, 800);
   await markSeen(lastList);
   if (pop.hidden) drawCloud();             // a card may have opened while we waited
 }
@@ -330,7 +345,7 @@ function drawCloud() {
   const cloud = document.getElementById('cloud'), layer = document.getElementById('layer');
   const W = cloud.clientWidth, H = cloud.clientHeight;
   const narrow = W < 600;
-  const list = lastList.slice(0, narrow ? 90 : 180);
+  const list = lastList.slice(0, narrow ? 300 : 800);
   if (!list.length) return;
   document.getElementById('msg').hidden = true;
 
@@ -344,7 +359,7 @@ function drawCloud() {
     let el = WORDS.get(t.key);
     if (!el) {
       WORDS.set(t.key, el = wordEl(t)); layer.appendChild(el);
-      const delay = (first ? i * 12 : 0) + 'ms', age = SEEN.get(t.key) ?? Infinity;
+      const delay = (first ? Math.min(i, 150) * 12 : 0) + 'ms', age = SEEN.get(t.key) ?? Infinity;
       if (age < FRESH_MS) {   // first seen recently: tinted, and the fade starts `age` ms in, not from zero
         el.classList.add('fresh');
         el.style.animationDelay = `${delay}, ${-age}ms`;
@@ -361,33 +376,132 @@ function drawCloud() {
 
   // group words that share stories: a big word, with its related words packed around it
   const aspect = Math.max(0.5, Math.min(2.4, W / H));
-  const gx = 5, gy = 2, placed = [], at = new Map();
+  const gx = 5, gy = 2, placed = [], at = new Map(), rank = new Map(list.map((t, i) => [t.key, i]));
+  // spatial hash of placed boxes, so each spiral step only checks its neighbours (hundreds of words crawl otherwise)
+  const CELL = 80, grid = new Map();
+  const free = (x, y, w, h) => {
+    for (let i = Math.floor(x / CELL), i1 = Math.floor((x + w) / CELL); i <= i1; i++)
+      for (let j = Math.floor(y / CELL), j1 = Math.floor((y + h) / CELL); j <= j1; j++)
+        for (const p of grid.get(i * 1e5 + j) || []) if (x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y) return false;
+    return true;
+  };
+  const occupy = p => {
+    for (let i = Math.floor(p.x / CELL), i1 = Math.floor((p.x + p.w) / CELL); i <= i1; i++)
+      for (let j = Math.floor(p.y / CELL), j1 = Math.floor((p.y + p.h) / CELL); j <= j1; j++) {
+        const c = i * 1e5 + j;
+        if (!grid.has(c)) grid.set(c, []);
+        grid.get(c).push(p);
+      }
+  };
   groupTerms(list).forEach((c, ci) => {
     c.forEach((t, k) => {
       const el = WORDS.get(t.key), w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
       const a = k ? at.get(c[0].key) : { x: 0, y: 0 }, phase = ci * 2.4;
-      for (let i = 0; i < 20000; i++) {
+      for (let i = 0; i < 60000; i++) {
         const th = i * 0.07, r = 1.5 * th;
         const x = a.x + r * Math.cos(th + phase) * aspect - w / 2, y = a.y + r * Math.sin(th + phase) - h / 2;
-        if (placed.some(p => x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y)) continue;
-        placed.push({ el, x, y, w, h });
+        if (!free(x, y, w, h)) continue;
+        const p = { el, x, y, w, h, rank: rank.get(t.key) };
+        placed.push(p); occupy(p);
         at.set(t.key, { x: x + w / 2, y: y + h / 2 });
         break;
       }
     });
   });
-  // centre the finished cluster on the layer's origin and scale it to fit
-  const minX = Math.min(...placed.map(p => p.x)), maxX = Math.max(...placed.map(p => p.x + p.w));
-  const minY = Math.min(...placed.map(p => p.y)), maxY = Math.max(...placed.map(p => p.y + p.h));
+  // centre on the strongest words and fit them to the space; the long tail spreads out beyond, for zooming out to
+  const core = placed.filter(p => p.rank < (narrow ? 60 : 150));
+  const minX = Math.min(...core.map(p => p.x)), maxX = Math.max(...core.map(p => p.x + p.w));
+  const minY = Math.min(...core.map(p => p.y)), maxY = Math.max(...core.map(p => p.y + p.h));
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const fit = Math.min(1.5, (W - 16) / (maxX - minX), (H - 16) / (maxY - minY));
   if (first) layer.style.transition = 'none';          // the first draw appears at its final scale
-  layer.style.transform = `scale(${fit.toFixed(3)})`;
+  fitScale = fit;
+  if (!view.moved) Object.assign(view, { s: fit, x: 0, y: 0 });   // once someone has zoomed or dragged, leave their view be
+  applyView();
   for (const p of placed) p.el.style.transform = `translate(${(p.x - cx + gx).toFixed(1)}px, ${(p.y - cy + gy).toFixed(1)}px)`;
   layer.offsetWidth;                                   // new words start in place; only existing ones glide
   for (const el of els) el.classList.remove('new');
   layer.style.transition = '';
 }
+
+// ---- zoom & pan: the layer draws the cloud at view.s, shifted (view.x, view.y) px from the cloud's centre.
+// Until someone zooms or drags, each draw fits the strongest words (fitScale); refreshes after that keep their view.
+const view = { s: 1, x: 0, y: 0, moved: false };
+const ZOOM_MIN = 0.02, ZOOM_MAX = 8;
+let fitScale = 1;
+const cloudEl = document.getElementById('cloud');
+function applyView() {
+  document.getElementById('layer').style.transform = `translate(${view.x.toFixed(1)}px, ${view.y.toFixed(1)}px) scale(${view.s.toFixed(4)})`;
+  document.getElementById('zoomLevel').textContent = Math.round(view.s / fitScale * 100) + '%';
+  const open = document.querySelector('.word[aria-expanded="true"]');
+  if (open && !pop.hidden) placePop(open);
+}
+// scale by k about a point (px from the cloud's centre), so whatever is under the cursor stays put
+function zoomAt(k, px = 0, py = 0) {
+  const s = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, view.s * k));
+  k = s / view.s;
+  view.x = px - (px - view.x) * k; view.y = py - (py - view.y) * k; view.s = s; view.moved = true;
+  applyView();
+}
+function resetView() { Object.assign(view, { s: fitScale, x: 0, y: 0, moved: false }); applyView(); }
+const fromCentre = e => { const r = cloudEl.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+
+let wheelTimer;
+cloudEl.addEventListener('wheel', e => {
+  e.preventDefault();
+  cloudEl.classList.add('moving');
+  clearTimeout(wheelTimer); wheelTimer = setTimeout(() => cloudEl.classList.remove('moving'), 150);
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;   // line-based wheels report lines, not px
+  zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), ...fromCentre(e));   // ctrlKey = trackpad pinch: small deltas
+}, { passive: false });
+
+// one finger or the mouse drags; two fingers pinch. Nothing moves until a press travels a few px, so clicks stay clicks.
+const pointers = new Map(), starts = new Map();   // pointerId -> [x, y] from the cloud's centre
+let dragged = false;
+const centroid = pts => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+const spread = pts => Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
+cloudEl.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || e.target.closest('#zoom')) return;
+  if (!pointers.size) dragged = false;
+  pointers.set(e.pointerId, fromCentre(e)); starts.set(e.pointerId, fromCentre(e));
+});
+cloudEl.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const before = [...pointers.values()];
+  pointers.set(e.pointerId, fromCentre(e));
+  const after = [...pointers.values()];
+  if (!dragged) {
+    const [sx, sy] = starts.get(e.pointerId), [x, y] = pointers.get(e.pointerId);
+    if (pointers.size < 2 && Math.hypot(x - sx, y - sy) < 5) return;
+    dragged = true;
+    cloudEl.classList.add('moving', 'dragging');
+    for (const id of pointers.keys()) cloudEl.setPointerCapture(id);
+  }
+  const [bx, by] = centroid(before), [ax, ay] = centroid(after);
+  view.x += ax - bx; view.y += ay - by; view.moved = true;
+  if (after.length >= 2 && spread(before) > 0) zoomAt(spread(after) / spread(before), ax, ay);
+  else applyView();
+});
+const release = e => {
+  pointers.delete(e.pointerId); starts.delete(e.pointerId);
+  if (!pointers.size) cloudEl.classList.remove('moving', 'dragging');
+};
+cloudEl.addEventListener('pointerup', release);
+cloudEl.addEventListener('pointercancel', release);
+// the click that ends a drag shouldn't open a word or close an open card
+cloudEl.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
+cloudEl.addEventListener('dblclick', e => { if (!e.target.closest('.word, #zoom')) resetView(); });
+
+document.getElementById('zoomIn').addEventListener('click', () => zoomAt(1.5));
+document.getElementById('zoomOut').addEventListener('click', () => zoomAt(1 / 1.5));
+document.getElementById('zoomFit').addEventListener('click', resetView);
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea')) return;
+  if (e.key === '+' || e.key === '=') zoomAt(1.5);
+  else if (e.key === '-') zoomAt(1 / 1.5);
+  else if (e.key === '0') resetView();
+});
+
 let resizeTimer;
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (pop.hidden) drawCloud(); }, 200); });
 
