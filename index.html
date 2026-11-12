@@ -324,37 +324,23 @@ function drawCloud() {
     return el;
   });
 
-  // group words that share stories: a big word, with its related words packed around it.
-  // Each group first claims a disc of space (sized by its words) so the lead words spread across the cloud;
-  // then every group's other words fill in around its own lead word.
+  // group words that share stories: a big word, with its related words packed around it
   const aspect = Math.max(0.5, Math.min(2.4, W / H));
-  const gx = 5, gy = 2, placed = [];
-  const groups = groupTerms(list).map((c, ci) => {
-    const boxes = c.map(t => { const el = WORDS.get(t.key); return { t, el, w: el.offsetWidth + gx * 2, h: el.offsetHeight + gy * 2 }; });
-    const area = boxes.reduce((n, b) => n + b.w * b.h, 0);
-    return { boxes, R: Math.sqrt(area / Math.PI) * 0.75, ci };
+  const gx = 5, gy = 2, placed = [], at = new Map();
+  groupTerms(list).forEach((c, ci) => {
+    c.forEach((t, k) => {
+      const el = WORDS.get(t.key), w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
+      const a = k ? at.get(c[0].key) : { x: 0, y: 0 }, phase = ci * 2.4;
+      for (let i = 0; i < 20000; i++) {
+        const th = i * 0.07, r = 1.5 * th;
+        const x = a.x + r * Math.cos(th + phase) * aspect - w / 2, y = a.y + r * Math.sin(th + phase) - h / 2;
+        if (placed.some(p => x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y)) continue;
+        placed.push({ el, x, y, w, h });
+        at.set(t.key, { x: x + w / 2, y: y + h / 2 });
+        break;
+      }
+    });
   });
-  const discs = [];
-  for (const g of groups) {                       // claim space: first group in the middle, the rest spiral out
-    for (let i = 0; i < 20000; i++) {
-      const th = i * 0.05, r = 4 * th;
-      const x = g.ci ? r * Math.cos(th) * aspect : 0, y = g.ci ? r * Math.sin(th) : 0;
-      if (discs.some(d => Math.hypot((x - d.x) / aspect, y - d.y) < g.R + d.R)) continue;
-      g.x = x; g.y = y; discs.push(g);
-      break;
-    }
-  }
-  const put = (b, ax, ay, phase) => {
-    for (let i = 0; i < 20000; i++) {
-      const th = i * 0.07, r = 1.5 * th;
-      const x = ax + r * Math.cos(th + phase) * aspect - b.w / 2, y = ay + r * Math.sin(th + phase) - b.h / 2;
-      if (placed.some(p => x < p.x + p.w && x + b.w > p.x && y < p.y + p.h && y + b.h > p.y)) continue;
-      placed.push({ el: b.el, x, y, w: b.w, h: b.h });
-      return { x: x + b.w / 2, y: y + b.h / 2 };
-    }
-  };
-  for (const g of groups) g.head = put(g.boxes[0], g.x, g.y, 0);     // every lead word first, so none is crowded out
-  for (const g of groups) g.boxes.slice(1).forEach(b => put(b, g.head.x, g.head.y, g.ci * 2.4));
   // centre the finished cluster on the layer's origin and scale it to fit
   const minX = Math.min(...placed.map(p => p.x)), maxX = Math.max(...placed.map(p => p.x + p.w));
   const minY = Math.min(...placed.map(p => p.y)), maxY = Math.max(...placed.map(p => p.y + p.h));
