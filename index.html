@@ -34,7 +34,7 @@
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .45; } }
-  .word { position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
+  .word { --c: hsl(0 0% 58%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
     font-family: var(--display); line-height: 1.05; white-space: nowrap; color: var(--c); -webkit-tap-highlight-color: transparent;
     transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
   .word.new { transition: none; }
@@ -82,7 +82,7 @@
   <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
-    <p class="hint">Bigger and darker = mentioned more, in more places · hover a word to see related ones, click for its stories</p>
+    <p class="hint">Bigger = mentioned more, in more places · hover a word to see related ones, click for its stories</p>
   </footer>
 </div>
 
@@ -323,7 +323,6 @@ function drawCloud() {
     el.style.fontSize = (narrow ? 13 + 46 * r : 13 + 57 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
     el.style.fontWeight = Math.round(500 + 100 * r);
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
-    el.style.setProperty('--c', `hsl(0 0% ${(92 - 43 * Math.sqrt(r)).toFixed(0)}%)`);   // bigger = darker gray, never near black
     return el;
   });
 
