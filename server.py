@@ -69,8 +69,13 @@ def x_trends():
     ]
 
 
+_EN = re.compile(r"\b(the|and|of|to|in|is|for|on|with|as|at|by|says|after|over|from|about|are|was|has|how|why|new|its|his|her)\b", re.I)
+
+
 def google_trends():
     # Google has no public Trends API; this is the "Daily Search Trends" RSS feed that powers trends.google.com/trending.
+    # A trend is a bare search phrase ("microsoft ceo"), so each one also brings its top headlines: they carry the
+    # names and context (who, what happened) that tie it to stories in the other feeds.
     geo = re.sub(r"[^A-Za-z-]", "", os.environ.get("GTRENDS_GEO", "US")) or "US"
     req = Request(f"https://trends.google.com/trending/rss?geo={geo}", headers={"User-Agent": "Mozilla/5.0 " + UA})
     with urlopen(req, timeout=10) as r:
@@ -90,7 +95,18 @@ def google_trends():
             "meta": f"{raw} searches" if raw else "",
             "value": n,
         })
-    return items[:30]
+        heads = 0
+        for ni in it.findall("ht:news_item", ns):
+            head = (ni.findtext("ht:news_item_title", namespaces=ns) or "").strip()
+            link = (ni.findtext("ht:news_item_url", namespaces=ns) or "").strip()
+            if not head or not link.startswith("http") or not _EN.search(head):
+                continue   # skip headlines in other languages: their words would just be noise
+            src = (ni.findtext("ht:news_item_source", namespaces=ns) or "").strip()
+            items.append({"title": head, "url": link, "meta": f"{src} · trending: {title}" if src else f"trending: {title}", "value": n * 0.6})
+            heads += 1
+            if heads == 2:
+                break
+    return items[:60]
 
 
 ROUTES = {"/api/reddit": reddit, "/api/x": x_trends, "/api/gtrends": google_trends}
