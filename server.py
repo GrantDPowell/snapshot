@@ -118,8 +118,8 @@ _seen, _seen_lock = None, threading.Lock()   # key -> [first_seen_ms, last_seen_
 
 
 def mark_seen(keys):
-    """Record these words and return {key: first_seen_ms}. The very first batch on an empty store is the baseline:
-    those words get first_seen 0 (already old), otherwise a fresh install would paint the whole cloud as new."""
+    """Record these words and return {key: ms since first seen}. The very first batch on an empty store is the baseline:
+    those words count as first seen at time 0 (already old), otherwise a fresh install would paint the whole cloud as new."""
     global _seen
     now = int(time.time() * 1000)
     with _seen_lock:
@@ -143,7 +143,7 @@ def mark_seen(keys):
             os.replace(SEEN_FILE + ".tmp", SEEN_FILE)
         except OSError:
             pass   # in-memory tracking still works if the disk doesn't
-        return {k: _seen[k][0] for k in keys}
+        return {k: now - _seen[k][0] for k in keys}   # ages, so browser clock skew can't matter
 
 
 def cached(path):

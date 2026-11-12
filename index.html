@@ -34,12 +34,14 @@
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .45; } }
-  /* --fresh runs 1 -> 0 over five minutes on words that just joined the cloud: full accent colour, fading to the usual gray */
+  /* --fresh runs 1 -> 0 over --fresh-time from a word's first sighting: full accent colour, fading to the usual gray.
+     Words already part-way through are started late with a negative animation-delay (see drawCloud). */
   @property --fresh { syntax: "<number>"; inherits: false; initial-value: 0; }
+  :root { --fresh-time: 600s; }
   .word { --c: hsl(0 0% 58%); --accent: hsl(14 90% 52%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
     font-family: var(--display); line-height: 1.05; white-space: nowrap; color: color-mix(in srgb, var(--accent) calc(var(--fresh) * 100%), var(--c)); -webkit-tap-highlight-color: transparent;
     transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
-  .word.fresh { animation: word-in .6s var(--ease) backwards, fresh 300s linear forwards; }
+  .word.fresh { animation: word-in .6s var(--ease) backwards, fresh var(--fresh-time) linear forwards; }
   @keyframes fresh { from { --fresh: 1; } to { --fresh: 0; } }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
@@ -48,7 +50,7 @@
   #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
   @keyframes word-in { from { opacity: 0; scale: .92; filter: blur(3px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; }
-    .word.fresh { animation: fresh 300s linear forwards !important; } }   /* a colour fade isn't motion: keep it */
+    .word.fresh { animation: fresh var(--fresh-time) linear forwards !important; } }   /* a colour fade isn't motion: keep it */
 
   footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0 20px; color: var(--ink2); font-size: 12px; }
   #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; }
@@ -223,7 +225,7 @@ document.getElementById('layer').addEventListener('transitionend', e => {
 
 // ---- score terms
 let lastList = [];
-function buildCloud() {
+async function buildCloud() {
   if (!pop.hidden) return;               // don't yank the cloud out from under a hover
   const terms = new Map();
   for (const s of SOURCES) {
@@ -265,7 +267,27 @@ function buildCloud() {
     }
   }
   lastList = list.slice(0, 180);
-  drawCloud();
+  await markSeen(lastList);
+  if (pop.hidden) drawCloud();             // a card may have opened while we waited
+}
+
+// ---- first sightings: the server remembers when each word first showed up, for every visitor, so a word is
+// "new" for FRESH_MS after it first trended, however many people load the page. SEEN holds ms-since-first-seen.
+const FRESH_MS = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fresh-time')) * 1000;
+const SEEN = new Map(), LOCAL = new Map();
+async function markSeen(list) {
+  try {
+    const r = await fetch('/api/seen', { method: 'POST', body: JSON.stringify({ keys: list.map(t => t.key) }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    for (const [k, age] of Object.entries(await r.json())) SEEN.set(k, age);
+  } catch {
+    // no backend (or it's down): fall back to this page's own sightings, the opening cloud counting as already old
+    const now = Date.now(), baseline = !LOCAL.size;
+    for (const t of list) {
+      if (!LOCAL.has(t.key)) LOCAL.set(t.key, baseline ? 0 : now);
+      SEEN.set(t.key, now - LOCAL.get(t.key));
+    }
+  }
 }
 
 // ---- pack words into a tight cluster: biggest first, spiral out from the centre until a spot is free,
@@ -321,11 +343,13 @@ function drawCloud() {
   const els = list.map((t, i) => {
     let el = WORDS.get(t.key);
     if (!el) {
-      WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el);
-      if (!first) {   // the opening cloud isn't "new"; only words that join later get the fading accent
+      WORDS.set(t.key, el = wordEl(t)); layer.appendChild(el);
+      const delay = (first ? i * 12 : 0) + 'ms', age = SEEN.get(t.key) ?? Infinity;
+      if (age < FRESH_MS) {   // first seen recently: tinted, and the fade starts `age` ms in, not from zero
         el.classList.add('fresh');
+        el.style.animationDelay = `${delay}, ${-age}ms`;
         el.addEventListener('animationend', e => { if (e.animationName === 'fresh') el.classList.remove('fresh'); });
-      }
+      } else el.style.animationDelay = delay;
     }
     const r = Math.pow(t.score / top, 0.8);
     el._t = t; el.textContent = t.label;
@@ -398,7 +422,7 @@ async function refresh() {
     .catch(e => { STATUS[s.id] = e.status === 503 ? 'setup' : 'err'; WHY[s.id] = e.message; })));   // stale items stay in STATE
   await fontReady;
   summarize();
-  buildCloud();
+  await buildCloud();
   if (!lastList.length) document.getElementById('msg').textContent = 'Nothing to show yet · retrying in a minute';
 }
 refresh();
