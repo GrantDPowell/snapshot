@@ -29,10 +29,21 @@
   .status.live i { background: var(--ink); animation: pulse 2.4s ease-out infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(17,17,17,.35); } 70%, 100% { box-shadow: 0 0 0 7px rgba(17,17,17,0); } }
 
-  #cloud { flex: 1; position: relative; min-height: 460px; overflow: hidden; }
-  #cloud > span { color: var(--ink2); }
-  .word { position: absolute; font: inherit; font-weight: 600; line-height: 1.1; white-space: nowrap; background: none; border: 0; padding: 0 3px; border-radius: 4px; cursor: pointer; transition: color .12s, background .12s; }
-  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ink) !important; background: #f0f0f0; outline: none; }
+  #cloud { flex: 1; position: relative; min-height: 420px; overflow: hidden; }
+  #layer { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: transform .7s var(--ease); }
+  .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
+  .msg[hidden] { display: none; }
+  @keyframes breathe { to { opacity: .45; } }
+  .word { position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
+    font-family: var(--display); line-height: 1.05; white-space: nowrap; color: var(--c); -webkit-tap-highlight-color: transparent;
+    transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
+  .word.new { transition: none; }
+  .word.out { opacity: 0; pointer-events: none; }
+  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ink); outline: none; }
+  .word:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
+  @keyframes word-in { from { opacity: 0; scale: .92; filter: blur(3px); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 
   footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0 20px; color: var(--ink2); font-size: 12px; }
   #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; }
@@ -63,7 +74,7 @@
     </div>
     <div id="status" class="status" role="status"><i></i><span>Connecting…</span></div>
   </header>
-  <div id="cloud"><span>Loading…</span></div>
+  <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
     <p class="hint">Bigger and darker = mentioned more, in more places · hover a word for its stories, click to pin</p>
@@ -139,12 +150,17 @@ let hideTimer = null, pinned = null;
 function hidePop(force) {
   if (pinned && !force) return;
   pop.hidden = true;
+  document.getElementById('cloud').classList.remove('focus');
   document.querySelectorAll('.word[aria-expanded="true"]').forEach(w => w.setAttribute('aria-expanded', 'false'));
 }
 function showPop(t, el) {
   clearTimeout(hideTimer);
   document.querySelectorAll('.word[aria-expanded="true"]').forEach(w => w.setAttribute('aria-expanded', 'false'));
   el.setAttribute('aria-expanded', 'true');
+  // fade the rest of the cloud, keeping words that share a story with this one
+  const stories = new Set(t.items.map(x => x.it));
+  for (const w of WORDS.values()) w.classList.toggle('rel', w._t.items.some(x => stories.has(x.it)));
+  document.getElementById('cloud').classList.add('focus');
   pop.replaceChildren();
   const head = document.createElement('div'); head.className = 'ph';
   const b = document.createElement('b'); b.textContent = t.label;
@@ -219,56 +235,71 @@ function buildCloud() {
   drawCloud();
 }
 
-// ---- pack words into a tight cluster: biggest first, spiral out from the centre until a spot is free
+// ---- pack words into a tight cluster: biggest first, spiral out from the centre until a spot is free,
+// then scale the whole cluster to fill the space. Words are kept between draws so they glide, not jump.
+const WORDS = new Map();   // term key -> its button
+function wordEl(t) {
+  const el = document.createElement('button');
+  el.className = 'word new'; el.type = 'button';
+  el.setAttribute('aria-expanded', 'false');
+  el.addEventListener('mouseenter', () => { if (!pinned || pinned === el) showPop(el._t, el); });
+  el.addEventListener('focus', () => { if (!pinned) showPop(el._t, el); });
+  el.addEventListener('mouseleave', scheduleHide);
+  el.addEventListener('blur', scheduleHide);
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    pinned = pinned === el ? null : el;
+    if (pinned) showPop(el._t, el); else hidePop(true);
+  });
+  return el;
+}
 function drawCloud() {
-  const cloud = document.getElementById('cloud');
-  if (!lastList.length) return;
+  const cloud = document.getElementById('cloud'), layer = document.getElementById('layer');
   const W = cloud.clientWidth, H = cloud.clientHeight;
-  const k = Math.min(1.2, Math.max(0.65, W / 1000));
-  const top = lastList[0].score;
-  const els = lastList.map(t => {
+  const narrow = W < 600;
+  const list = lastList.slice(0, narrow ? 40 : 70);
+  if (!list.length) return;
+  document.getElementById('msg').hidden = true;
+
+  const keep = new Set(list.map(t => t.key));
+  for (const [key, el] of WORDS) {
+    if (keep.has(key)) continue;
+    WORDS.delete(key); el.classList.add('out'); setTimeout(() => el.remove(), 300);
+  }
+  const first = WORDS.size === 0, top = list[0].score;
+  const els = list.map((t, i) => {
+    let el = WORDS.get(t.key);
+    if (!el) { WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el); }
     const r = Math.pow(t.score / top, 0.85);
-    const el = document.createElement('button');
-    el.className = 'word'; el.type = 'button'; el.textContent = t.label;
-    el.setAttribute('aria-expanded', 'false');
-    el.style.fontSize = ((12 + 62 * r) * k).toFixed(1) + 'px';
-    el.style.color = `hsl(0 0% ${(52 - 30 * r).toFixed(0)}%)`;   // bigger = darker gray
-    el.style.visibility = 'hidden';
-    el.addEventListener('mouseenter', () => { if (!pinned || pinned === el) showPop(t, el); });
-    el.addEventListener('focus', () => { if (!pinned) showPop(t, el); });
-    el.addEventListener('mouseleave', scheduleHide);
-    el.addEventListener('blur', scheduleHide);
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      pinned = pinned === el ? null : el;
-      if (pinned) showPop(t, el); else hidePop(true);
-    });
+    el._t = t; el.textContent = t.label;
+    el.style.fontSize = ((narrow ? 16 : 13) + 64 * r).toFixed(1) + 'px';
+    el.style.fontWeight = Math.round(500 + 150 * r);
+    el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
+    el.style.setProperty('--c', `hsl(0 0% ${(62 - 52 * Math.sqrt(r)).toFixed(0)}%)`);   // bigger = darker gray
     return el;
   });
-  cloud.replaceChildren(...els);               // attach so we can measure
-  const aspect = Math.max(1, Math.min(2.4, W / H));
-  const gap = 4, placed = [];
+
+  const aspect = Math.max(0.7, Math.min(2.4, W / H));
+  const gx = 5, gy = 2, placed = [];
   for (const el of els) {
-    const w = el.offsetWidth + gap * 2, h = el.offsetHeight + gap * 2;
-    let spot = null;
-    for (let i = 0; i < 9000 && !spot; i++) {
+    const w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
+    for (let i = 0; i < 20000; i++) {
       const th = i * 0.07, r = 1.5 * th;
-      const x = W / 2 + r * Math.cos(th) * aspect - w / 2, y = H / 2 + r * Math.sin(th) - h / 2;
-      if (x < 0 || y < 0 || x + w > W || y + h > H) continue;
+      const x = r * Math.cos(th) * aspect - w / 2, y = r * Math.sin(th) - h / 2;
       if (placed.some(p => x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y)) continue;
-      spot = { el, x, y, w, h };
+      placed.push({ el, x, y, w, h });
+      break;
     }
-    if (spot) placed.push(spot); else el.remove();   // no room left: drop the smallest words
   }
-  // re-centre the finished cluster
+  // centre the finished cluster on the layer's origin and scale it to fit
   const minX = Math.min(...placed.map(p => p.x)), maxX = Math.max(...placed.map(p => p.x + p.w));
   const minY = Math.min(...placed.map(p => p.y)), maxY = Math.max(...placed.map(p => p.y + p.h));
-  const dx = (W - (maxX - minX)) / 2 - minX, dy = (H - (maxY - minY)) / 2 - minY;
-  for (const p of placed) {
-    p.el.style.left = (p.x + dx + gap).toFixed(1) + 'px';
-    p.el.style.top = (p.y + dy + gap).toFixed(1) + 'px';
-    p.el.style.visibility = 'visible';
-  }
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const fit = Math.min(1.5, (W - 16) / (maxX - minX), (H - 16) / (maxY - minY));
+  layer.style.transform = `scale(${fit.toFixed(3)})`;
+  for (const p of placed) p.el.style.transform = `translate(${(p.x - cx + gx).toFixed(1)}px, ${(p.y - cy + gy).toFixed(1)}px)`;
+  layer.offsetWidth;                                   // new words start in place; only existing ones glide
+  for (const el of els) el.classList.remove('new');
 }
 let resizeTimer;
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (pop.hidden) drawCloud(); }, 200); });
@@ -292,12 +323,20 @@ function summarize() {
 }
 summarize();
 
+const fontReady = Promise.race([
+  document.fonts.load('600 20px "Inter Tight"').catch(() => {}),
+  new Promise(r => setTimeout(r, 1500)),
+]);
+document.fonts.addEventListener('loadingdone', () => { if (pop.hidden) drawCloud(); });
+
 async function refresh() {
   await Promise.all(SOURCES.map(s => s.load()
     .then(items => { STATE[s.id] = items; STATUS[s.id] = 'ok'; })
     .catch(e => { STATUS[s.id] = e.status === 503 ? 'setup' : 'err'; WHY[s.id] = e.message; })));   // stale items stay in STATE
+  await fontReady;
   summarize();
   buildCloud();
+  if (!lastList.length) document.getElementById('msg').textContent = 'Nothing to show yet · retrying in a minute';
 }
 refresh();
 setInterval(refresh, 60000);
