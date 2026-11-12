@@ -241,10 +241,10 @@ function buildCloud() {
     });
   }
   // keep anything seen twice, or a word from a feed's stronger stories; boost by spread
-  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.6);
+  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.45);
   for (const t of list) { t.score *= 1 + 0.5 * (t.sources.size - 1); t.items.sort((a, b) => b.w - a.w); }
   list.sort((a, b) => b.score - a.score);
-  list = list.slice(0, 140);
+  list = list.slice(0, 220);
   // fuse neighbours that always appear together ("Jensen" + "Huang" -> "Jensen Huang")
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
@@ -258,7 +258,7 @@ function buildCloud() {
       list.splice(j, 1); j--;
     }
   }
-  lastList = list.slice(0, 110);
+  lastList = list.slice(0, 180);
   drawCloud();
 }
 
@@ -278,11 +278,30 @@ function wordEl(t) {
   });
   return el;
 }
+// Greedy clusters, biggest word first: a word joins the cluster whose head shares most of its stories
+// (at least half), else it starts its own. Clusters are capped so the cloud keeps several centres of size.
+function groupTerms(list, cap = 14) {
+  const heads = [];
+  for (const t of list) {
+    const stories = new Set(t.items.map(x => x.it));
+    let best = null, bestFrac = 0;
+    for (const h of heads) {
+      if (h.length > cap) continue;
+      let shared = 0;
+      for (const s of stories) if (h.stories.has(s)) shared++;
+      const frac = shared / stories.size;
+      if (frac > bestFrac) { best = h; bestFrac = frac; }
+    }
+    if (best && bestFrac >= 0.5) best.push(t);
+    else { const h = [t]; h.stories = stories; heads.push(h); }
+  }
+  return heads;
+}
 function drawCloud() {
   const cloud = document.getElementById('cloud'), layer = document.getElementById('layer');
   const W = cloud.clientWidth, H = cloud.clientHeight;
   const narrow = W < 600;
-  const list = lastList.slice(0, narrow ? 60 : 110);
+  const list = lastList.slice(0, narrow ? 90 : 180);
   if (!list.length) return;
   document.getElementById('msg').hidden = true;
 
@@ -314,18 +333,23 @@ function drawCloud() {
     return el;
   });
 
+  // group words that share stories: a big word, with its related words packed around it
   const aspect = Math.max(0.5, Math.min(2.4, W / H));
-  const gx = 5, gy = 2, placed = [];
-  for (const el of els) {
-    const w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
-    for (let i = 0; i < 20000; i++) {
-      const th = i * 0.07, r = 1.5 * th;
-      const x = r * Math.cos(th) * aspect - w / 2, y = r * Math.sin(th) - h / 2;
-      if (placed.some(p => x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y)) continue;
-      placed.push({ el, x, y, w, h });
-      break;
-    }
-  }
+  const gx = 5, gy = 2, placed = [], at = new Map();
+  groupTerms(list).forEach((c, ci) => {
+    c.forEach((t, k) => {
+      const el = WORDS.get(t.key), w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
+      const a = k ? at.get(c[0].key) : { x: 0, y: 0 }, phase = ci * 2.4;
+      for (let i = 0; i < 20000; i++) {
+        const th = i * 0.07, r = 1.5 * th;
+        const x = a.x + r * Math.cos(th + phase) * aspect - w / 2, y = a.y + r * Math.sin(th + phase) - h / 2;
+        if (placed.some(p => x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y)) continue;
+        placed.push({ el, x, y, w, h });
+        at.set(t.key, { x: x + w / 2, y: y + h / 2 });
+        break;
+      }
+    });
+  });
   // centre the finished cluster on the layer's origin and scale it to fit
   const minX = Math.min(...placed.map(p => p.x)), maxX = Math.max(...placed.map(p => p.x + p.w));
   const minY = Math.min(...placed.map(p => p.y)), maxY = Math.max(...placed.map(p => p.y + p.h));
