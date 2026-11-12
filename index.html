@@ -316,11 +316,9 @@ function drawCloud() {
   const els = list.map((t, i) => {
     let el = WORDS.get(t.key);
     if (!el) { WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el); }
-    // size by rank as well as score: one runaway word would otherwise squash everyone else into a few sizes
-    const rank = Math.pow(1 - i / Math.max(1, list.length - 1), 2.2);
-    const r = 0.65 * rank + 0.35 * Math.pow(t.score / top, 0.8);
+    const r = Math.pow(t.score / top, 0.8);
     el._t = t; el.textContent = t.label;
-    el.style.fontSize = (narrow ? 13 + 46 * r : 13 + 57 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
+    el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
     el.style.fontWeight = Math.round(500 + 100 * r);
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
     return el;
