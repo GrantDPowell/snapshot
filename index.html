@@ -34,12 +34,12 @@
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .45; } }
-  /* --fresh runs 1 -> 0 over a minute on words that just joined the cloud: full accent colour, fading to the usual gray */
+  /* --fresh runs 1 -> 0 over five minutes on words that just joined the cloud: full accent colour, fading to the usual gray */
   @property --fresh { syntax: "<number>"; inherits: false; initial-value: 0; }
   .word { --c: hsl(0 0% 58%); --accent: hsl(14 90% 52%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
     font-family: var(--display); line-height: 1.05; white-space: nowrap; color: color-mix(in srgb, var(--accent) calc(var(--fresh) * 100%), var(--c)); -webkit-tap-highlight-color: transparent;
     transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
-  .word.fresh { animation: word-in .6s var(--ease) backwards, fresh 60s linear forwards; }
+  .word.fresh { animation: word-in .6s var(--ease) backwards, fresh 300s linear forwards; }
   @keyframes fresh { from { --fresh: 1; } to { --fresh: 0; } }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
@@ -48,7 +48,7 @@
   #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
   @keyframes word-in { from { opacity: 0; scale: .92; filter: blur(3px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; }
-    .word.fresh { animation: fresh 60s linear forwards !important; } }   /* a colour fade isn't motion: keep it */
+    .word.fresh { animation: fresh 300s linear forwards !important; } }   /* a colour fade isn't motion: keep it */
 
   footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0 20px; color: var(--ink2); font-size: 12px; }
   #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; }
