@@ -296,7 +296,7 @@ function drawCloud() {
     el.style.fontSize = (narrow ? 18 + 40 * r : 13 + 64 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
     el.style.fontWeight = Math.round(500 + 100 * r);
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
-    el.style.setProperty('--c', `hsl(0 0% ${(60 - 34 * Math.sqrt(r)).toFixed(0)}%)`);   // bigger = darker gray, never near black
+    el.style.setProperty('--c', `hsl(0 0% ${(62 - 24 * Math.sqrt(r)).toFixed(0)}%)`);   // bigger = darker gray, never near black
     return el;
   });
 
