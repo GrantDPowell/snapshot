@@ -54,15 +54,20 @@
   #sources li.err { text-decoration: line-through; }
   .hint { margin: 0; color: var(--ink3); }
 
-  #pop { position: fixed; z-index: 10; width: 340px; max-width: calc(100vw - 16px); background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.14); padding: 10px 12px; font-size: 13px; }
+  #pop { position: fixed; z-index: 10; width: 360px; max-width: calc(100vw - 16px); background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 16px 44px -10px rgba(0,0,0,.2); padding: 14px 8px 8px; animation: pop-in .16s var(--ease); }
   #pop[hidden] { display: none; }
-  #pop .ph { color: var(--ink2); font-size: 12px; margin-bottom: 6px; }
-  #pop .ph b { color: var(--ink); font-size: 15px; margin-right: 8px; }
+  #pop.pinned { border-color: rgba(0,0,0,.22); }
+  @keyframes pop-in { from { opacity: 0; translate: 0 4px; } }
+  #pop .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 8px 8px; color: var(--ink2); font-size: 12px; white-space: nowrap; }
+  #pop .ph b { color: var(--ink); font: 600 18px/1.2 var(--display); letter-spacing: -.02em; white-space: normal; overflow-wrap: anywhere; }
   #pop ul { list-style: none; margin: 0; padding: 0; }
-  #pop li { padding: 5px 0; border-top: 1px solid var(--line); }
-  #pop li a { color: var(--ink); text-decoration: none; display: block; overflow-wrap: anywhere; }
-  #pop li a:hover { text-decoration: underline; }
-  #pop li small { color: var(--ink2); font-size: 12px; display: block; margin-top: 1px; }
+  #pop li a { display: block; padding: 7px 8px; border-radius: 8px; color: var(--ink); text-decoration: none; transition: background .12s; }
+  #pop li a:hover, #pop li a:focus-visible { background: #f5f5f5; outline: none; }
+  #pop li span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; line-height: 1.35; }
+  #pop li small { display: block; margin-top: 3px; color: var(--ink2); font-size: 11px; }
+  #pop li small b { font-weight: 600; letter-spacing: .05em; text-transform: uppercase; font-size: 10px; }
+  #pop .more { padding: 6px 8px 4px; color: var(--ink3); font-size: 11px; }
 </style>
 </head>
 <body>
@@ -162,24 +167,34 @@ function showPop(t, el) {
   for (const w of WORDS.values()) w.classList.toggle('rel', w._t.items.some(x => stories.has(x.it)));
   document.getElementById('cloud').classList.add('focus');
   pop.replaceChildren();
+  const n = t.items.length, shown = t.items.slice(0, 5);
   const head = document.createElement('div'); head.className = 'ph';
   const b = document.createElement('b'); b.textContent = t.label;
-  head.append(b, `${t.items.length} mentions · ${t.sources.size} source${t.sources.size > 1 ? 's' : ''}`);
+  const count = document.createElement('span');
+  count.textContent = `${n} mention${n > 1 ? 's' : ''} · ${t.sources.size} source${t.sources.size > 1 ? 's' : ''}`;
+  head.append(b, count);
   const ul = document.createElement('ul');
-  for (const { it, id } of t.items.slice(0, 5)) {
+  for (const { it, id } of shown) {
     const li = document.createElement('li');
     const a = document.createElement('a');
-    a.textContent = it.title; a.href = it.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.href = it.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    const title = document.createElement('span'); title.textContent = it.title;
     const sm = document.createElement('small');
-    sm.textContent = SRC_NAME[id] + (it.meta ? ' · ' + it.meta : '');
-    li.append(a, sm); ul.appendChild(li);
+    const src = document.createElement('b'); src.textContent = SRC_NAME[id];
+    sm.append(src, it.meta ? ' · ' + it.meta : '');
+    a.append(title, sm); li.appendChild(a); ul.appendChild(li);
   }
   pop.append(head, ul);
+  if (n > shown.length) { const more = document.createElement('div'); more.className = 'more'; more.textContent = `+ ${n - shown.length} more`; pop.appendChild(more); }
+  pop.classList.toggle('pinned', pinned === el);
   pop.hidden = false;
+  placePop(el);
+}
+function placePop(el) {
   const r = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
   const x = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, innerWidth - pw - 8));
-  let y = r.bottom + 6;
-  if (y + ph > innerHeight - 8) y = Math.max(8, r.top - ph - 6);
+  let y = r.bottom + 8;
+  if (y + ph > innerHeight - 8) y = Math.max(8, r.top - ph - 8);
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
 const scheduleHide = () => { clearTimeout(hideTimer); hideTimer = setTimeout(() => hidePop(), 150); };
@@ -187,6 +202,12 @@ pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
 pop.addEventListener('mouseleave', scheduleHide);
 document.addEventListener('click', e => { if (!pop.contains(e.target)) { pinned = null; hidePop(true); } });
 addEventListener('scroll', () => { pinned = null; hidePop(true); }, { passive: true });
+// a word can still be gliding when its card opens: follow it once it lands
+document.getElementById('layer').addEventListener('transitionend', e => {
+  if (e.propertyName !== 'transform' || pop.hidden) return;
+  const open = document.querySelector('.word[aria-expanded="true"]');
+  if (open) placePop(open);
+});
 
 // ---- score terms
 let lastList = [];
