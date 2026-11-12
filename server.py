@@ -42,7 +42,7 @@ def reddit():
         )
         _reddit_token.update(value=tok["access_token"], expires=time.time() + tok.get("expires_in", 3600))
     d = http_json(
-        "https://oauth.reddit.com/r/all/hot?limit=20&raw_json=1",
+        "https://oauth.reddit.com/r/all/hot?limit=30&raw_json=1",
         headers={"Authorization": f"Bearer {_reddit_token['value']}"},
     )
     return [
@@ -63,7 +63,7 @@ def x_trends():
             "meta": f"{t['tweet_count']} posts" if t.get("tweet_count") else "",
             "value": t.get("tweet_count") or 0,
         }
-        for t in d.get("data", [])[:20]
+        for t in d.get("data", [])[:30]
     ]
 
 

@@ -104,31 +104,31 @@ const getJSON = async url => {
 // Each source returns [{title, url, meta, value?}]. value (optional) is the popularity count.
 const SOURCES = [
   { id: 'hn', name: 'Hacker News', async load() {
-      const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 20);
+      const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 30);
       const items = await Promise.all(ids.map(id => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
       return items.filter(Boolean).map(i => ({ title: i.title, url: i.url || `https://news.ycombinator.com/item?id=${i.id}`, meta: `${i.score} pts · ${ago(i.time)}`, value: i.score, time: i.time }));
   }},
   { id: 'gh', name: 'GitHub', async load() {
       const since = new Date(Date.now() - 7*864e5).toISOString().slice(0, 10);
-      const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=20`);
+      const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=30`);
       return j.items.map(r => ({ title: `${r.full_name}${r.description ? ' — ' + r.description : ''}`, url: r.html_url, meta: '★ ' + fmt(r.stargazers_count), value: r.stargazers_count, time: Date.parse(r.created_at) / 1000 }));
   }},
   // Reddit and X go through server.py (they need credentials the browser must not hold).
   { id: 'reddit', name: 'Reddit', load: () => getJSON('/api/reddit') },
   { id: 'x', name: 'X', load: () => getJSON('/api/x') },
   { id: 'masto', name: 'Mastodon', async load() {
-      const j = await getJSON('https://mastodon.social/api/v1/trends/links?limit=20');
+      const j = await getJSON('https://mastodon.social/api/v1/trends/links?limit=30');
       return j.map(l => { const n = l.history.slice(0, 2).reduce((s, d) => s + Number(d.uses), 0); return { title: l.title || l.url, url: l.url, meta: fmt(n) + ' posts', value: n }; });
   }},
   { id: 'bsky', name: 'Bluesky', async load() {
-      const j = await getJSON('https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrendingTopics?limit=20');
+      const j = await getJSON('https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrendingTopics?limit=30');
       return j.topics.map(t => ({ title: t.topic, url: t.link.startsWith('http') ? t.link : 'https://bsky.app' + t.link, meta: '' }));
   }},
   { id: 'wiki', name: 'Wikipedia', async load() {
       const d = new Date(Date.now() - 864e5);
       const p = n => String(n).padStart(2, '0');
       const j = await getJSON(`https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`);
-      return j.items[0].articles.filter(a => !/^(Main_Page|Special:|Wikipedia:|Portal:|-)/.test(a.article)).slice(0, 20)
+      return j.items[0].articles.filter(a => !/^(Main_Page|Special:|Wikipedia:|Portal:|-)/.test(a.article)).slice(0, 30)
         .map(a => ({ title: a.article.replace(/_/g, ' '), url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(a.article), meta: fmt(a.views) + ' views', value: a.views }));
   }},
 ];
@@ -241,10 +241,10 @@ function buildCloud() {
     });
   }
   // keep anything seen twice, or a word from a feed's stronger stories; boost by spread
-  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.85);
+  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.6);
   for (const t of list) { t.score *= 1 + 0.5 * (t.sources.size - 1); t.items.sort((a, b) => b.w - a.w); }
   list.sort((a, b) => b.score - a.score);
-  list = list.slice(0, 90);
+  list = list.slice(0, 140);
   // fuse neighbours that always appear together ("Jensen" + "Huang" -> "Jensen Huang")
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
@@ -258,7 +258,7 @@ function buildCloud() {
       list.splice(j, 1); j--;
     }
   }
-  lastList = list.slice(0, 70);
+  lastList = list.slice(0, 110);
   drawCloud();
 }
 
@@ -282,7 +282,7 @@ function drawCloud() {
   const cloud = document.getElementById('cloud'), layer = document.getElementById('layer');
   const W = cloud.clientWidth, H = cloud.clientHeight;
   const narrow = W < 600;
-  const list = lastList.slice(0, narrow ? 40 : 70);
+  const list = lastList.slice(0, narrow ? 60 : 110);
   if (!list.length) return;
   document.getElementById('msg').hidden = true;
 
@@ -295,9 +295,9 @@ function drawCloud() {
   const els = list.map((t, i) => {
     let el = WORDS.get(t.key);
     if (!el) { WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el); }
-    const r = Math.pow(t.score / top, 0.85);
+    const r = Math.pow(t.score / top, 0.8);
     el._t = t; el.textContent = t.label;
-    el.style.fontSize = (narrow ? 18 + 40 * r : 13 + 64 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
+    el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
     el.style.fontWeight = Math.round(500 + 100 * r);
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
     // newer = more orange: full colour for stories under ~2h old, fading to plain gray by a day.
