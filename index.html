@@ -82,7 +82,7 @@
   <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
-    <p class="hint">Bigger and darker = mentioned more, in more places · hover a word for its stories, click to pin</p>
+    <p class="hint">Bigger and darker = mentioned more, in more places · hover a word to see related ones, click for its stories</p>
   </footer>
 </div>
 
@@ -158,14 +158,23 @@ function hidePop(force) {
   document.getElementById('cloud').classList.remove('focus');
   document.querySelectorAll('.word[aria-expanded="true"]').forEach(w => w.setAttribute('aria-expanded', 'false'));
 }
+// fade the rest of the cloud, keeping words that share a story with this one
+function setFocus(t) {
+  const stories = new Set(t.items.map(x => x.it));
+  for (const w of WORDS.values()) w.classList.toggle('rel', w._t.items.some(x => stories.has(x.it)));
+  document.getElementById('cloud').classList.add('focus');
+}
+// hover ends: back to the open card's words, or the plain cloud
+function restoreFocus() {
+  const open = document.querySelector('.word[aria-expanded="true"]');
+  if (open && !pop.hidden) setFocus(open._t);
+  else document.getElementById('cloud').classList.remove('focus');
+}
 function showPop(t, el) {
   clearTimeout(hideTimer);
   document.querySelectorAll('.word[aria-expanded="true"]').forEach(w => w.setAttribute('aria-expanded', 'false'));
   el.setAttribute('aria-expanded', 'true');
-  // fade the rest of the cloud, keeping words that share a story with this one
-  const stories = new Set(t.items.map(x => x.it));
-  for (const w of WORDS.values()) w.classList.toggle('rel', w._t.items.some(x => stories.has(x.it)));
-  document.getElementById('cloud').classList.add('focus');
+  setFocus(t);
   pop.replaceChildren();
   const n = t.items.length, shown = t.items.slice(0, 5);
   const head = document.createElement('div'); head.className = 'ph';
@@ -197,9 +206,6 @@ function placePop(el) {
   if (y + ph > innerHeight - 8) y = Math.max(8, r.top - ph - 8);
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
-const scheduleHide = () => { clearTimeout(hideTimer); hideTimer = setTimeout(() => hidePop(), 150); };
-pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-pop.addEventListener('mouseleave', scheduleHide);
 document.addEventListener('click', e => { if (!pop.contains(e.target)) { pinned = null; hidePop(true); } });
 addEventListener('scroll', () => { pinned = null; hidePop(true); }, { passive: true });
 // a word can still be gliding when its card opens: follow it once it lands
@@ -263,10 +269,8 @@ function wordEl(t) {
   const el = document.createElement('button');
   el.className = 'word new'; el.type = 'button';
   el.setAttribute('aria-expanded', 'false');
-  el.addEventListener('mouseenter', () => { if (!pinned || pinned === el) showPop(el._t, el); });
-  el.addEventListener('focus', () => { if (!pinned) showPop(el._t, el); });
-  el.addEventListener('mouseleave', scheduleHide);
-  el.addEventListener('blur', scheduleHide);
+  el.addEventListener('mouseenter', () => setFocus(el._t));
+  el.addEventListener('mouseleave', restoreFocus);
   el.addEventListener('click', e => {
     e.stopPropagation();
     pinned = pinned === el ? null : el;
