@@ -150,7 +150,7 @@ const SRC_NAME = Object.fromEntries(SOURCES.map(s => [s.id, s.name]));
 const pop = document.createElement('div');
 pop.id = 'pop'; pop.hidden = true;
 document.body.appendChild(pop);
-let hideTimer = null, pinned = null;
+let hideTimer = null, leaveTimer = null, pinned = null;
 
 function hidePop(force) {
   if (pinned && !force) return;
@@ -269,8 +269,9 @@ function wordEl(t) {
   const el = document.createElement('button');
   el.className = 'word new'; el.type = 'button';
   el.setAttribute('aria-expanded', 'false');
-  el.addEventListener('mouseenter', () => setFocus(el._t));
-  el.addEventListener('mouseleave', restoreFocus);
+  // leaving waits a beat, so gliding onto a neighbour hands the fade straight over instead of flashing back to normal
+  el.addEventListener('mouseenter', () => { clearTimeout(leaveTimer); setFocus(el._t); });
+  el.addEventListener('mouseleave', () => { clearTimeout(leaveTimer); leaveTimer = setTimeout(restoreFocus, 140); });
   el.addEventListener('click', e => {
     e.stopPropagation();
     pinned = pinned === el ? null : el;
