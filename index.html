@@ -34,16 +34,21 @@
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink3); font: 500 15px var(--display); animation: breathe 1.6s ease-in-out infinite alternate; }
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .45; } }
-  .word { --c: hsl(0 0% 58%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
-    font-family: var(--display); line-height: 1.05; white-space: nowrap; color: var(--c); -webkit-tap-highlight-color: transparent;
+  /* --fresh runs 1 -> 0 over a minute on words that just joined the cloud: full accent colour, fading to the usual gray */
+  @property --fresh { syntax: "<number>"; inherits: false; initial-value: 0; }
+  .word { --c: hsl(0 0% 58%); --accent: hsl(14 90% 52%); position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
+    font-family: var(--display); line-height: 1.05; white-space: nowrap; color: color-mix(in srgb, var(--accent) calc(var(--fresh) * 100%), var(--c)); -webkit-tap-highlight-color: transparent;
     transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
+  .word.fresh { animation: word-in .6s var(--ease) backwards, fresh 60s linear forwards; }
+  @keyframes fresh { from { --fresh: 1; } to { --fresh: 0; } }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
   .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ink); outline: none; }
   .word:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
   @keyframes word-in { from { opacity: 0; scale: .92; filter: blur(3px); } }
-  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; }
+    .word.fresh { animation: fresh 60s linear forwards !important; } }   /* a colour fade isn't motion: keep it */
 
   footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 12px 0 20px; color: var(--ink2); font-size: 12px; }
   #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; }
@@ -315,7 +320,13 @@ function drawCloud() {
   const first = WORDS.size === 0, top = list[0].score;
   const els = list.map((t, i) => {
     let el = WORDS.get(t.key);
-    if (!el) { WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el); }
+    if (!el) {
+      WORDS.set(t.key, el = wordEl(t)); el.style.animationDelay = (first ? i * 12 : 0) + 'ms'; layer.appendChild(el);
+      if (!first) {   // the opening cloud isn't "new"; only words that join later get the fading accent
+        el.classList.add('fresh');
+        el.addEventListener('animationend', e => { if (e.animationName === 'fresh') el.classList.remove('fresh'); });
+      }
+    }
     const r = Math.pow(t.score / top, 0.8);
     el._t = t; el.textContent = t.label;
     el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
