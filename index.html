@@ -91,18 +91,14 @@
 
   /* ---- the cloud fills the whole window; header and footer float over it, faded in by dark bands ---- */
   #cloud { position: fixed; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
-  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 58px; z-index: 2; pointer-events: none; }
-  #cloud::before { top: 0; background: linear-gradient(rgba(2, 3, 9, .9) 25%, rgba(2, 3, 9, 0)); }
-  #cloud::after { bottom: 0; background: linear-gradient(rgba(2, 3, 9, 0), rgba(2, 3, 9, .9) 75%); }
+  /* the cloud runs edge to edge, so these fades carry the header and footer text over it */
+  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 84px; z-index: 2; pointer-events: none; }
+  #cloud::before { top: 0; background: linear-gradient(rgba(2, 3, 9, .96) 40%, rgba(2, 3, 9, 0)); }
+  #cloud::after { bottom: 0; height: 104px; background: linear-gradient(rgba(2, 3, 9, 0), rgba(2, 3, 9, .96) 55%); }
   #cloud.dragging { cursor: grabbing; }
   header, footer { position: relative; z-index: 4; pointer-events: none; }
   header > *, footer > * { pointer-events: auto; }
   footer { margin-top: auto; }
-  /* the whole cloud floats: it leans a few degrees toward the pointer, as one cached layer */
-  #tilt { position: absolute; inset: 0; will-change: transform; transition: transform 1.2s var(--ease); }
-  #layer { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: transform .7s var(--ease); }
-  /* wheel, drag and pinch follow the hand directly, and scale one cached bitmap instead of re-laying out every word */
-  #cloud.moving #layer { transition: none; will-change: transform; }
   /* the pointer is a light: a soft pearl glow that brightens whatever words it passes over */
   #lens { position: absolute; left: 0; top: 0; z-index: 1; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%; pointer-events: none;
     opacity: 0; mix-blend-mode: screen; will-change: transform, opacity; transition: opacity .6s;
@@ -113,33 +109,18 @@
   .msg[hidden] { display: none; }
   @keyframes breathe { to { opacity: .3; } }
 
-  /* ---- words ----
-     --r (0..1, set by drawCloud) is a word's strength: faint hairline steel in the long tail, bright and heavy at the top.
-     --fresh goes 1 -> 0 over --fresh-time from a word's first sighting: signal mint fading into its usual colour.
-     drawCloud sets both on every refresh, so they step once a minute instead of animating every word every frame. */
-  @property --fresh { syntax: "<number>"; inherits: false; initial-value: 0; }
+  /* ---- words: drawn on a canvas (see drawWords), so these are just the surfaces ----
+     --fresh-time is how long a newly seen word keeps its mint tint; the script reads it. */
   :root { --fresh-time: 600s; }
-  .word { --r: 0; --lo: rgb(120 138 190 / .58); --hi: #f4f7ff;
-    position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
-    font-family: var(--display); line-height: 1.05; white-space: nowrap; -webkit-tap-highlight-color: transparent;
-    color: color-mix(in oklab, var(--signal) calc(var(--fresh) * 50%), color-mix(in oklab, var(--hi) calc(var(--r) * 100%), var(--lo)));
-    transition: transform .7s var(--ease), opacity .25s, color 1s, text-shadow .2s, filter .2s; animation: word-in .6s var(--ease) backwards; }
-  /* the strongest words are pearl holograms, washed toward signal mint while fresh */
-  .word.top { color: transparent; -webkit-background-clip: text; background-clip: text;
-    background-image: linear-gradient(100deg, color-mix(in oklab, var(--signal) calc(var(--fresh) * 50%), #ffffff) 0%, var(--p1) 22%, var(--p2) 44%, var(--p3) 66%, var(--p4) 86%, var(--p5));
-    filter: drop-shadow(0 0 14px rgba(170, 200, 255, .12)); }
-  .word.new { transition: none; }
-  .word.out { opacity: 0; pointer-events: none; }
-  /* hover: the word splits into its colours, like light through a prism */
-  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: #fff; outline: none;
-    text-shadow: -.025em 0 0 rgba(120, 255, 230, .3), .025em 0 0 rgba(255, 140, 210, .3), 0 0 14px rgba(190, 220, 255, .25); }
-  .word.top:hover, .word.top:focus-visible, .word.top[aria-expanded="true"] { color: transparent; text-shadow: none;
-    filter: drop-shadow(-1px 0 0 rgba(120, 255, 230, .3)) drop-shadow(1px 0 0 rgba(255, 140, 210, .3)) drop-shadow(0 0 14px rgba(200, 225, 255, .25)); }
-  .word:focus-visible { outline: 1px solid var(--p1); outline-offset: 4px; }
-  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .32; }
-  #cloud.focus .word.rel:not(.top):not([aria-expanded="true"]) { color: #e3eaff; }
-  @keyframes word-in { from { opacity: 0; scale: .9; } }   /* no blur: filtering hundreds of words at once stalls the first draw */
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  #words, #ghost { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #words { opacity: 0; }
+  #words.in { animation: cloud-in 1s var(--ease) forwards; }
+  @keyframes cloud-in { from { opacity: 0; scale: .97; } to { opacity: 1; scale: 1; } }
+  #ghost { pointer-events: none; opacity: 0; transition: opacity .5s var(--ease); }
+  #cloud.over { cursor: pointer; }
+  #cloud.dragging.over { cursor: grabbing; }
+  .sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } #words { opacity: 1; } }
 
   /* ---- footer: sources as hairline chips, plus the read-out ---- */
   footer { display: flex; align-items: center; justify-content: space-between; gap: 6px 20px; flex-wrap: wrap; padding: 6px 0 13px; color: var(--ink2); }
@@ -202,7 +183,8 @@
     </div>
     <div id="status" class="status" role="status"><i></i><span>Connecting…</span></div>
   </header>
-  <div id="cloud"><div id="tilt"><div id="layer"></div></div><div id="lens"></div><p id="msg" class="msg">Acquiring signal…</p></div>
+  <div id="cloud"><canvas id="ghost" aria-hidden="true"></canvas><canvas id="words" role="img" aria-label="Word cloud of what the internet is talking about; the top terms are listed below"></canvas><div id="lens"></div><p id="msg" class="msg">Acquiring signal…</p></div>
+  <ol id="terms" class="sr" aria-label="Top terms"></ol>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
     <div class="readout">
@@ -228,7 +210,25 @@ const getJSON = async url => {
 };
 
 // Each source returns [{title, url, meta, value?}]. value (optional) is the popularity count.
+// The newsroom groups, Google News, Polymarket, Bluesky, Reddit, X and Google Trends go through server.py
+// (credentials the browser must not hold, or no CORS).
 const SOURCES = [
+  { id: 'news', name: 'US News', load: () => getJSON('/api/news') },
+  { id: 'politics', name: 'Politics', load: () => getJSON('/api/politics') },
+  { id: 'sports', name: 'Sports', load: () => getJSON('/api/sports') },
+  { id: 'ent', name: 'Entertainment', load: () => getJSON('/api/entertainment') },
+  { id: 'biz', name: 'Business & Tech', load: () => getJSON('/api/business') },
+  { id: 'sci', name: 'Science & Health', load: () => getJSON('/api/science') },
+  { id: 'gnews', name: 'Google News', load: () => getJSON('/api/gnews') },
+  { id: 'gtrends', name: 'Google Trends', load: () => getJSON('/api/gtrends') },
+  { id: 'poly', name: 'Polymarket', load: () => getJSON('/api/polymarket') },
+  { id: 'wiki', name: 'Wikipedia', async load() {
+      const d = new Date(Date.now() - 864e5);
+      const p = n => String(n).padStart(2, '0');
+      const j = await getJSON(`https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`);
+      return j.items[0].articles.filter(a => !/^(Main_Page|Special:|Wikipedia:|Portal:|-)/.test(a.article)).slice(0, 1000)
+        .map(a => ({ title: a.article.replace(/_/g, ' '), url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(a.article), meta: fmt(a.views) + ' views', value: a.views }));
+  }},
   { id: 'hn', name: 'Hacker News', async load() {
       const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 100);
       const items = await Promise.all(ids.map(id => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
@@ -239,25 +239,13 @@ const SOURCES = [
       const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=100`);
       return j.items.map(r => ({ title: `${r.full_name}${r.description ? ' — ' + r.description : ''}`, url: r.html_url, meta: '★ ' + fmt(r.stargazers_count), value: r.stargazers_count }));
   }},
-  // Reddit, X and Google Trends go through server.py (credentials the browser must not hold, or no CORS).
-  { id: 'reddit', name: 'Reddit', load: () => getJSON('/api/reddit') },
-  { id: 'x', name: 'X', load: () => getJSON('/api/x') },
-  { id: 'gtrends', name: 'Google Trends', load: () => getJSON('/api/gtrends') },
   { id: 'masto', name: 'Mastodon', async load() {
       const j = await getJSON('https://mastodon.social/api/v1/trends/links?limit=30');
       return j.map(l => { const n = l.history.slice(0, 2).reduce((s, d) => s + Number(d.uses), 0); return { title: l.title || l.url, url: l.url, meta: fmt(n) + ' posts', value: n }; });
   }},
-  { id: 'bsky', name: 'Bluesky', async load() {
-      const j = await getJSON('https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrendingTopics?limit=30');
-      return j.topics.map(t => ({ title: t.topic, url: t.link.startsWith('http') ? t.link : 'https://bsky.app' + t.link, meta: '' }));
-  }},
-  { id: 'wiki', name: 'Wikipedia', async load() {
-      const d = new Date(Date.now() - 864e5);
-      const p = n => String(n).padStart(2, '0');
-      const j = await getJSON(`https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`);
-      return j.items[0].articles.filter(a => !/^(Main_Page|Special:|Wikipedia:|Portal:|-)/.test(a.article)).slice(0, 200)
-        .map(a => ({ title: a.article.replace(/_/g, ' '), url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(a.article), meta: fmt(a.views) + ' views', value: a.views }));
-  }},
+  { id: 'bsky', name: 'Bluesky', load: () => getJSON('/api/bsky') },
+  { id: 'reddit', name: 'Reddit', load: () => getJSON('/api/reddit') },
+  { id: 'x', name: 'X', load: () => getJSON('/api/x') },
 ];
 
 // ---- word cloud: pull terms out of every feed's headlines, weight by popularity
@@ -273,35 +261,43 @@ const termOk = (raw, key) => !STOP.has(key) && !/^\d+$/.test(key) &&
   ((raw.length >= 3 && raw.length <= 24) || ACRONYMS.has(raw));   // 2-letter words only if known acronyms
 const SRC_NAME = Object.fromEntries(SOURCES.map(s => [s.id, s.name]));
 
+// ---- the canvas: every word is drawn here rather than being its own element, so thousands stay smooth
+const cloudEl = document.getElementById('cloud');
+const canvas = document.getElementById('words'), ctx = canvas.getContext('2d');
+const ghost = document.getElementById('ghost'), gctx = ghost.getContext('2d');   // the previous layout, fading out
+let W = 0, H = 0, DPR = 1;
+function sizeCanvas() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = cloudEl.clientWidth; H = cloudEl.clientHeight;
+  for (const c of [canvas, ghost]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+}
+sizeCanvas();
+
 // ---- hover / pin snapshot
 const pop = document.createElement('div');
 pop.id = 'pop'; pop.hidden = true;
 document.body.appendChild(pop);
-let hideTimer = null, leaveTimer = null, pinned = null;
+let pinned = null;   // the term whose card is open
+let hoverT = null;   // the term under the pointer
 
-function hidePop(force) {
-  if (pinned && !force) return;
-  pop.hidden = true;
-  document.getElementById('cloud').classList.remove('focus');
-  document.querySelectorAll('.word[aria-expanded="true"]').forEach(w => w.setAttribute('aria-expanded', 'false'));
+function hidePop() {
+  pinned = null; pop.hidden = true;
+  updateFocus();
 }
-// fade the rest of the cloud, keeping words that share a story with this one
-function setFocus(t) {
-  const stories = new Set(t.items.map(x => x.it));
-  for (const w of WORDS.values()) w.classList.toggle('rel', w._t.items.some(x => stories.has(x.it)));
-  document.getElementById('cloud').classList.add('focus');
+// fade the rest of the cloud, keeping words that share a story with the hovered (or open) one
+let focusT = null, relSet = null;
+function updateFocus() {
+  const t = hoverT || pinned;
+  if (t === focusT) return;
+  focusT = t; relSet = null;
+  if (t) {
+    const stories = new Set(t.items.map(x => x.it));
+    relSet = new Set(WORDS.filter(m => m.t.items.some(x => stories.has(x.it))));
+  }
+  requestRender();
 }
-// hover ends: back to the open card's words, or the plain cloud
-function restoreFocus() {
-  const open = document.querySelector('.word[aria-expanded="true"]');
-  if (open && !pop.hidden) setFocus(open._t);
-  else document.getElementById('cloud').classList.remove('focus');
-}
-function showPop(t, el) {
-  clearTimeout(hideTimer);
-  document.querySelectorAll('.word[aria-expanded="true"]').forEach(w => w.setAttribute('aria-expanded', 'false'));
-  el.setAttribute('aria-expanded', 'true');
-  setFocus(t);
+function showPop(t) {
+  pinned = t;
   pop.replaceChildren();
   const n = t.items.length, shown = t.items.slice(0, 5);
   // points = the word's score x100: each story adds its pull (0.35-1, see buildCloud), times the spread bonus for extra sources
@@ -312,7 +308,7 @@ function showPop(t, el) {
   for (const { id, w } of t.items) bySource.set(id, (bySource.get(id) || 0) + pts(w));
   const head = document.createElement('div'); head.className = 'ph';
   const b = document.createElement('b'); b.textContent = t.label;
-  const where = document.createElement('span'); where.textContent = rank ? `#${rank} of ${lastList.length}` : '';
+  const where = document.createElement('span'); where.textContent = rank ? `#${rank.toLocaleString()} of ${lastList.length.toLocaleString()}` : '';
   head.append(b, where);
   const score = document.createElement('div'); score.className = 'score';
   const total = document.createElement('strong'); total.textContent = [...bySource.values()].reduce((s, p) => s + p, 0).toLocaleString();
@@ -344,31 +340,33 @@ function showPop(t, el) {
   }
   pop.append(head, score, bars, ul);
   if (n > shown.length) { const more = document.createElement('div'); more.className = 'more'; more.textContent = `+ ${n - shown.length} more`; pop.appendChild(more); }
-  pop.classList.toggle('pinned', pinned === el);
+  pop.classList.add('pinned');
   pop.hidden = false;
-  placePop(el);
+  placePop();
+  updateFocus();
 }
-function placePop(el) {
-  const r = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+// keep the card beside its word, wherever zooming and dragging have taken it
+function placePop() {
+  if (pop.hidden || !pinned) return;
+  const m = WORD_OF.get(pinned.key);
+  if (!m) return;
+  const left = W / 2 + view.x + view.s * m.x, top = H / 2 + view.y + view.s * m.y;
+  const r = { left, top, width: view.s * m.bw, bottom: top + view.s * m.bh };
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
   const x = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, innerWidth - pw - 8));
   let y = r.bottom + 8;
-  const top = innerWidth < 600 ? 8 : document.querySelector('header').getBoundingClientRect().bottom + 6;   // stay clear of the header where there's room
-  if (y + ph > innerHeight - 8) y = Math.max(top, r.top - ph - 8);
+  const min = innerWidth < 600 ? 8 : document.querySelector('header').getBoundingClientRect().bottom + 6;   // stay clear of the header where there's room
+  if (y + ph > innerHeight - 8) y = Math.max(min, r.top - ph - 8);
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
-document.addEventListener('click', e => { if (!pop.contains(e.target)) { pinned = null; hidePop(true); } });
-addEventListener('scroll', () => { pinned = null; hidePop(true); }, { passive: true });
-// a word can still be gliding when its card opens: follow it once it lands
-document.getElementById('layer').addEventListener('transitionend', e => {
-  if (e.propertyName !== 'transform' || pop.hidden) return;
-  const open = document.querySelector('.word[aria-expanded="true"]');
-  if (open) placePop(open);
-});
+document.addEventListener('click', e => { if (!pop.contains(e.target)) hidePop(); });
+addEventListener('scroll', hidePop, { passive: true });
 
 // ---- score terms
 let lastList = [];
+const MAX_TERMS = 8000, PHONE_TERMS = 3000;
 async function buildCloud() {
-  if (!pop.hidden) return;               // don't yank the cloud out from under a hover
+  if (pinned) return;                       // don't yank the cloud out from under an open card
   const terms = new Map();
   for (const s of SOURCES) {
     const items = STATE[s.id];
@@ -390,27 +388,33 @@ async function buildCloud() {
       }
     });
   }
-  // keep anything seen twice, or a word from a feed's stronger stories; boost by spread
-  let list = [...terms.values()].filter(t => t.items.length >= 2 || t.best >= 0.4);
+  // every term makes the long tail; boost by spread
+  let list = [...terms.values()];
   for (const t of list) { t.score *= 1 + 0.5 * (t.sources.size - 1); t.items.sort((a, b) => b.w - a.w); }
   list.sort((a, b) => b.score - a.score);
-  list = list.slice(0, 1000);
-  // fuse neighbours that always appear together ("Jensen" + "Huang" -> "Jensen Huang")
-  for (let i = 0; i < list.length; i++) {
-    for (let j = i + 1; j < list.length; j++) {
-      const a = list[i], b = list[j];
-      if (a.items.length < 2 || a.items.length !== b.items.length) continue;   // only fuse pairs seen in 2+ stories
+  list = list.slice(0, MAX_TERMS);
+  // fuse neighbours that always appear together ("Jensen" + "Huang" -> "Jensen Huang"); only the head of the list,
+  // where words are big enough for it to matter, so this stays quick with thousands of terms
+  let fuseEnd = Math.min(list.length, 1000);
+  for (let i = 0; i < fuseEnd; i++) {
+    const a = list[i];
+    if (a.items.length < 2) continue;   // only fuse pairs seen in 2+ stories
+    for (let j = i + 1; j < fuseEnd; j++) {
+      const b = list[j];
+      if (a.items.length !== b.items.length) continue;
       const pair = (x, y) => a.items.every(({ it }) => it.title.toLowerCase().includes(`${x.key} ${y.key}`));
       const first = pair(a, b) ? a : pair(b, a) ? b : null;
       if (!first) continue;
       a.label = first === a ? `${a.label} ${b.label}` : `${b.label} ${a.label}`;
       a.key = first === a ? `${a.key} ${b.key}` : `${b.key} ${a.key}`;
-      list.splice(j, 1); j--;
+      list.splice(j, 1); j--; fuseEnd--;
     }
   }
-  lastList = list.slice(0, 800);
+  lastList = list;
   await markSeen(lastList);
-  if (pop.hidden) drawCloud();             // a card may have opened while we waited
+  stale = true;
+  // once someone is exploring (zoomed or dragged), leave the layout be; it catches up when they reset the view
+  if (!pinned && (!view.moved || !WORDS.length)) layoutCloud();
 }
 
 // ---- first sightings: the server remembers when each word first showed up, for every visitor, so a word is
@@ -432,23 +436,6 @@ async function markSeen(list) {
   }
 }
 
-// ---- pack words into a tight cluster: biggest first, spiral out from the centre until a spot is free,
-// then scale the whole cluster to fill the space. Words are kept between draws so they glide, not jump.
-const WORDS = new Map();   // term key -> its button
-function wordEl(t) {
-  const el = document.createElement('button');
-  el.className = 'word new'; el.type = 'button';
-  el.setAttribute('aria-expanded', 'false');
-  // leaving waits a beat, so gliding onto a neighbour hands the fade straight over instead of flashing back to normal
-  el.addEventListener('mouseenter', () => { clearTimeout(leaveTimer); setFocus(el._t); });
-  el.addEventListener('mouseleave', () => { clearTimeout(leaveTimer); leaveTimer = setTimeout(restoreFocus, 140); });
-  el.addEventListener('click', e => {
-    e.stopPropagation();
-    pinned = pinned === el ? null : el;
-    if (pinned) showPop(el._t, el); else hidePop(true);
-  });
-  return el;
-}
 // Greedy clusters, biggest word first: a word joins the cluster whose head shares most of its stories
 // (at least half), else it starts its own. Clusters are capped so the cloud keeps several centres of size.
 function groupTerms(list, cap = 14) {
@@ -468,103 +455,287 @@ function groupTerms(list, cap = 14) {
   }
   return heads;
 }
-function drawCloud() {
-  const cloud = document.getElementById('cloud'), layer = document.getElementById('layer');
-  const W = cloud.clientWidth, H = cloud.clientHeight;
-  const narrow = W < 600;
-  const list = lastList.slice(0, narrow ? 300 : 800);
-  if (!list.length) return;
-  document.getElementById('msg').hidden = true;
 
-  const keep = new Set(list.map(t => t.key));
-  for (const [key, el] of WORDS) {
-    if (keep.has(key)) continue;
-    WORDS.delete(key); el.classList.add('out'); setTimeout(() => el.remove(), 300);
-  }
-  const first = WORDS.size === 0, top = list[0].score;
-  const els = list.map((t, i) => {
-    let el = WORDS.get(t.key);
-    if (!el) {
-      WORDS.set(t.key, el = wordEl(t)); layer.appendChild(el);
-      el.style.animationDelay = (first ? Math.min(i, 150) * 12 : 0) + 'ms';
-    }
-    // first seen recently: tinted, fading toward gray as the word ages (stepped per refresh, see --fresh)
-    el.style.setProperty('--fresh', Math.max(0, 1 - (SEEN.get(t.key) ?? Infinity) / FRESH_MS).toFixed(2));
-    const r = Math.pow(t.score / top, 0.8);
-    el._t = t; el.textContent = t.label;
-    el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
-    el.style.fontWeight = Math.round(300 + 400 * r);   // hairline long tail up to heavy headliners
-    el.style.setProperty('--r', r.toFixed(3));
-    el.classList.toggle('top', i < (narrow ? 8 : 14));  // the headliners render as pearl holograms
-    el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
-    return el;
-  });
-
-  // group words that share stories: a big word, with its related words packed around it
-  const aspect = Math.max(0.5, Math.min(2.4, W / H));
-  const gx = 5, gy = 2, placed = [], at = new Map(), rank = new Map(list.map((t, i) => [t.key, i]));
-  // spatial hash of placed boxes, so each spiral step only checks its neighbours (hundreds of words crawl otherwise)
+// ---- layout, in a worker so thousands of words never freeze the page.
+// The core (strongest words) packs in clusters: each cluster's words spiral out around its head. The long tail then
+// fills rings outward on a fine occupancy grid, nearest the centre first, which stays fast for thousands of words.
+const LAYOUT_WORKER = `
+onmessage = ({ data }) => {
+  const { id, n, core, clusters, aspect, w, h } = data;
+  const X = new Float32Array(n), Y = new Float32Array(n), ok = new Uint8Array(n), at = new Float32Array(n * 2);
   const CELL = 80, grid = new Map();
-  const free = (x, y, w, h) => {
-    for (let i = Math.floor(x / CELL), i1 = Math.floor((x + w) / CELL); i <= i1; i++)
-      for (let j = Math.floor(y / CELL), j1 = Math.floor((y + h) / CELL); j <= j1; j++)
-        for (const p of grid.get(i * 1e5 + j) || []) if (x < p.x + p.w && x + w > p.x && y < p.y + p.h && y + h > p.y) return false;
+  const free = (x, y, bw, bh) => {
+    for (let i = Math.floor(x / CELL), i1 = Math.floor((x + bw) / CELL); i <= i1; i++)
+      for (let j = Math.floor(y / CELL), j1 = Math.floor((y + bh) / CELL); j <= j1; j++)
+        for (const p of grid.get(i * 1e5 + j) || []) if (x < X[p] + w[p] && x + bw > X[p] && y < Y[p] + h[p] && y + bh > Y[p]) return false;
     return true;
   };
   const occupy = p => {
-    for (let i = Math.floor(p.x / CELL), i1 = Math.floor((p.x + p.w) / CELL); i <= i1; i++)
-      for (let j = Math.floor(p.y / CELL), j1 = Math.floor((p.y + p.h) / CELL); j <= j1; j++) {
+    for (let i = Math.floor(X[p] / CELL), i1 = Math.floor((X[p] + w[p]) / CELL); i <= i1; i++)
+      for (let j = Math.floor(Y[p] / CELL), j1 = Math.floor((Y[p] + h[p]) / CELL); j <= j1; j++) {
         const c = i * 1e5 + j;
         if (!grid.has(c)) grid.set(c, []);
         grid.get(c).push(p);
       }
   };
-  groupTerms(list).forEach((c, ci) => {
-    c.forEach((t, k) => {
-      const el = WORDS.get(t.key), w = el.offsetWidth + gx * 2, h = el.offsetHeight + gy * 2;
-      const a = k ? at.get(c[0].key) : { x: 0, y: 0 }, phase = ci * 2.4;
-      for (let i = 0; i < 60000; i++) {
-        const th = i * 0.07, r = 1.5 * th;
-        const x = a.x + r * Math.cos(th + phase) * aspect - w / 2, y = a.y + r * Math.sin(th + phase) - h / 2;
-        if (!free(x, y, w, h)) continue;
-        const p = { el, x, y, w, h, rank: rank.get(t.key) };
-        placed.push(p); occupy(p);
-        at.set(t.key, { x: x + w / 2, y: y + h / 2 });
+  clusters.forEach((c, ci) => c.forEach((i, k) => {
+    const head = c[0], anchored = k && ok[head], ax = anchored ? at[head * 2] : 0, ay = anchored ? at[head * 2 + 1] : 0, phase = ci * 2.4;
+    for (let s = 0; s < 60000; s++) {
+      const th = s * 0.07, r = 1.5 * th;
+      const x = ax + r * Math.cos(th + phase) * aspect - w[i] / 2, y = ay + r * Math.sin(th + phase) - h[i] / 2;
+      if (!free(x, y, w[i], h[i])) continue;
+      X[i] = x; Y[i] = y; ok[i] = 1; occupy(i);
+      at[i * 2] = x + w[i] / 2; at[i * 2 + 1] = y + h[i] / 2;
+      break;
+    }
+  }));
+  if (n > core) {
+    let minX = 0, maxX = 0, minY = 0, maxY = 0, area = 0;
+    for (let i = 0; i < core; i++) if (ok[i]) {
+      minX = Math.min(minX, X[i]); maxX = Math.max(maxX, X[i] + w[i]);
+      minY = Math.min(minY, Y[i]); maxY = Math.max(maxY, Y[i] + h[i]);
+    }
+    for (let i = core; i < n; i++) area += w[i] * h[i];
+    area = area * 1.6 + (maxX - minX) * (maxY - minY);   // slack: packing never fills every gap
+    let ry = Math.sqrt(area / (Math.PI * aspect)), rx = ry * aspect;
+    rx = Math.max(rx, -minX * 1.05, maxX * 1.05); ry = Math.max(ry, -minY * 1.05, maxY * 1.05);
+    const EXT = 1.4, GX = rx * EXT, GY = ry * EXT;
+    let C = 5;
+    while ((2 * GX / C) * (2 * GY / C) > 4e6) C++;
+    const gw = Math.ceil(2 * GX / C), gh = Math.ceil(2 * GY / C), occ = new Uint8Array(gw * gh);
+    const mark = (x, y, bw, bh) => {
+      const i0 = Math.max(0, Math.floor((x + GX) / C)), i1 = Math.min(gw - 1, Math.floor((x + bw + GX) / C));
+      const j0 = Math.max(0, Math.floor((y + GY) / C)), j1 = Math.min(gh - 1, Math.floor((y + bh + GY) / C));
+      for (let j = j0; j <= j1; j++) occ.fill(1, j * gw + i0, j * gw + i1 + 1);
+    };
+    for (let i = 0; i < core; i++) if (ok[i]) mark(X[i], Y[i], w[i], h[i]);
+    // candidate cells nearest the centre first (elliptical distance); key and cell index pack into one float so the
+    // native typed-array sort orders them, which is far faster than sorting with a comparator
+    const SLOT = 4194304, cand = new Float64Array(gw * gh);
+    let nc = 0;
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const dx = ((i + 0.5) * C - GX) / rx, dy = ((j + 0.5) * C - GY) / ry, d = dx * dx + dy * dy;
+      if (d <= EXT * EXT) cand[nc++] = Math.floor(d * 1e6) * SLOT + (j * gw + i);
+    }
+    const order = cand.subarray(0, nc).sort();
+    // Cells only ever fill up, so a spot too small for a word of some size stays too small for every later word of
+    // that size: each size resumes its search where the last one of its size landed, instead of rescanning every gap.
+    let ptr = 0;
+    const resume = new Map();
+    for (let i = core; i < n; i++) {
+      const wc = Math.ceil(w[i] / C), hc = Math.ceil(h[i] / C), size = wc * 4096 + hc;
+      while (ptr < nc && occ[order[ptr] % SLOT]) ptr++;
+      for (let k = Math.max(ptr, resume.get(size) || 0); k < nc; k++) {
+        const idx = order[k] % SLOT;
+        if (occ[idx]) continue;
+        const ci = idx % gw - (wc >> 1), cj = Math.floor(idx / gw) - (hc >> 1);
+        if (ci < 0 || cj < 0 || ci + wc > gw || cj + hc > gh) continue;
+        let fits = true;
+        for (let jj = cj; jj < cj + hc && fits; jj++) for (let ii = ci; ii < ci + wc; ii++) if (occ[jj * gw + ii]) { fits = false; break; }
+        if (!fits) continue;
+        for (let jj = cj; jj < cj + hc; jj++) occ.fill(1, jj * gw + ci, jj * gw + ci + wc);
+        X[i] = ci * C - GX; Y[i] = cj * C - GY; ok[i] = 1;
+        resume.set(size, k);
         break;
       }
-    });
-  });
-  // centre on the strongest words and fit them to the space; the long tail spreads out beyond, for zooming out to
-  const core = placed.filter(p => p.rank < (narrow ? 60 : 150));
-  const minX = Math.min(...core.map(p => p.x)), maxX = Math.max(...core.map(p => p.x + p.w));
-  const minY = Math.min(...core.map(p => p.y)), maxY = Math.max(...core.map(p => p.y + p.h));
-  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  // keep the opening view clear of the header and footer floating over the cloud
-  const band = Math.max(document.querySelector('header').getBoundingClientRect().bottom, H - document.querySelector('footer').getBoundingClientRect().top);
-  const fit = Math.min(1.5, (W - 32) / (maxX - minX), (H - 2 * band - 16) / (maxY - minY));
-  if (first) layer.style.transition = 'none';          // the first draw appears at its final scale
-  fitScale = fit;
-  document.getElementById('roTerms').textContent = placed.length;
-  if (!view.moved) Object.assign(view, { s: fit, x: 0, y: 0 });   // once someone has zoomed or dragged, leave their view be
-  applyView();
-  for (const p of placed) p.el.style.transform = `translate(${(p.x - cx + gx).toFixed(1)}px, ${(p.y - cy + gy).toFixed(1)}px)`;
-  layer.offsetWidth;                                   // new words start in place; only existing ones glide
-  for (const el of els) el.classList.remove('new');
-  layer.style.transition = '';
+    }
+  }
+  postMessage({ id, X, Y, ok }, [X.buffer, Y.buffer, ok.buffer]);
+};`;
+const layoutWorker = new Worker(URL.createObjectURL(new Blob([LAYOUT_WORKER], { type: 'text/javascript' })));
+const CORE = 500, PAD_X = 5, PAD_Y = 2;
+const measure = document.createElement('canvas').getContext('2d');
+const fontOf = (size, weight) => `${weight} ${size}px "Space Grotesk", system-ui, sans-serif`;
+let WORDS = [], ORDER = [], WORD_OF = new Map(), HIT = new Map(), coreBox = null, fitScale = 1, pending = null, stale = false, layoutSeq = 0;
+
+function layoutCloud() {
+  const narrow = innerWidth < 600;
+  const list = lastList.slice(0, narrow ? PHONE_TERMS : MAX_TERMS);
+  if (!list.length) return;
+  stale = false;
+  const top = list[0].score, n = list.length, w = new Float32Array(n), h = new Float32Array(n), metas = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = list[i], r = Math.round(Math.pow(t.score / top, 0.8) * 100) / 100;
+    const size = Math.round((narrow ? 13 + 46 * r : 10 + 70 * r) * 2) / 2, weight = Math.round(300 + 400 * r);
+    const font = fontOf(size, weight);
+    if (measure.font !== font) measure.font = font;
+    const tw = measure.measureText(t.label).width;
+    w[i] = tw + PAD_X * 2; h[i] = size * 1.05 + PAD_Y * 2;
+    metas[i] = { t, label: t.label, r, size, font, tw, bw: w[i], bh: h[i], rank: i, top: i < (narrow ? 8 : 14) };
+  }
+  const index = new Map(list.map((t, i) => [t.key, i]));
+  const core = Math.min(CORE, n);
+  const clusters = groupTerms(list.slice(0, core)).map(c => c.map(t => index.get(t.key)));
+  const aspect = Math.max(0.5, Math.min(2.4, W / H));
+  pending = { id: ++layoutSeq, metas, narrow };
+  layoutWorker.postMessage({ id: pending.id, n, core, clusters, aspect, w, h }, [w.buffer, h.buffer]);
 }
 
-// ---- zoom & pan: the layer draws the cloud at view.s, shifted (view.x, view.y) px from the cloud's centre.
-// Until someone zooms or drags, each draw fits the strongest words (fitScale); refreshes after that keep their view.
-const view = { s: 1, x: 0, y: 0, moved: false };
-const ZOOM_MIN = 0.02, ZOOM_MAX = 8;
-let fitScale = 1;
-const cloudEl = document.getElementById('cloud');
-function applyView() {
-  document.getElementById('layer').style.transform = `translate(${view.x.toFixed(1)}px, ${view.y.toFixed(1)}px) scale(${view.s.toFixed(4)})`;
-  document.getElementById('roZoom').textContent = (view.s / fitScale).toFixed(2) + '×';
-  const open = document.querySelector('.word[aria-expanded="true"]');
-  if (open && !pop.hidden) placePop(open);
+// colours: dim steel in the long tail to bright white at the top, mixed toward signal mint while a word is fresh
+const LO = [120, 138, 190, 0.58], HI = [244, 247, 255, 1], SIGNAL = [125, 255, 212, 1], REL_FILL = '#e3eaff';
+const PEARL = ['#b9fff0', '#a8c2ff', '#d9b8ff', '#ffc6e3', '#fff1c2'];
+const colorCache = new Map();
+function colorOf(r, fresh) {
+  const key = r * 100 + fresh * 1e4;
+  let c = colorCache.get(key);
+  if (!c) {
+    const f = fresh * 0.5, mix = (i) => (LO[i] + (HI[i] - LO[i]) * r) * (1 - f) + SIGNAL[i] * f;
+    c = `rgba(${Math.round(mix(0))}, ${Math.round(mix(1))}, ${Math.round(mix(2))}, ${mix(3).toFixed(3)})`;
+    colorCache.set(key, c);
+  }
+  return c;
 }
+layoutWorker.onmessage = ({ data: { id, X, Y, ok } }) => {
+  if (!pending || id !== pending.id) return;   // a newer layout is on its way
+  const { metas, narrow } = pending;
+  pending = null;
+  const words = [];
+  for (let i = 0; i < metas.length; i++) if (ok[i]) { metas[i].x = X[i]; metas[i].y = Y[i]; words.push(metas[i]); }
+  // centre on the strongest words; the opening view fits them, and the long tail spreads out beyond, for zooming out to
+  const core = words.filter(m => m.rank < (narrow ? 60 : 150));
+  const minX = Math.min(...core.map(m => m.x)), maxX = Math.max(...core.map(m => m.x + m.bw));
+  const minY = Math.min(...core.map(m => m.y)), maxY = Math.max(...core.map(m => m.y + m.bh));
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  coreBox = { w: maxX - minX, h: maxY - minY };
+  for (const m of words) {
+    m.x -= cx; m.y -= cy;
+    m.fresh = Math.round(Math.max(0, 1 - (SEEN.get(m.t.key) ?? Infinity) / FRESH_MS) * 10) / 10;   // stepped per refresh
+    m.fill = colorOf(m.r, m.fresh);
+  }
+  // draw order groups words by font, then colour, so the canvas switches state as rarely as possible; headliners last
+  const order = words.filter(m => !m.top).sort((a, b) => a.font < b.font ? -1 : a.font > b.font ? 1 : a.fill < b.fill ? -1 : a.fill > b.fill ? 1 : 0);
+  order.push(...words.filter(m => m.top).reverse());
+  // hit grid: which words cover each 64px world cell, for hover and click
+  const hit = new Map();
+  words.forEach(m => {
+    for (let i = Math.floor(m.x / 64), i1 = Math.floor((m.x + m.bw) / 64); i <= i1; i++)
+      for (let j = Math.floor(m.y / 64), j1 = Math.floor((m.y + m.bh) / 64); j <= j1; j++) {
+        const c = i * 1e5 + j;
+        if (!hit.has(c)) hit.set(c, []);
+        hit.get(c).push(m);
+      }
+  });
+  // cross-fade from the old layout instead of snapping
+  const hadWords = WORDS.length > 0;
+  if (hadWords) {
+    gctx.setTransform(1, 0, 0, 1, 0, 0); gctx.clearRect(0, 0, ghost.width, ghost.height); gctx.drawImage(canvas, 0, 0);
+    ghost.style.transition = 'none'; ghost.style.opacity = '1';
+    ghost.offsetWidth;
+    ghost.style.transition = ''; ghost.style.opacity = '0';
+  }
+  WORDS = words; ORDER = order; HIT = hit; WORD_OF = new Map(words.map(m => [m.t.key, m]));
+  focusT = null; relSet = null; hoverT = null;
+  computeFit();
+  if (!view.moved) Object.assign(view, { s: fitScale, x: 0, y: 0 });
+  cache.valid = false;
+  document.getElementById('msg').hidden = true;
+  document.getElementById('roTerms').textContent = words.length.toLocaleString();
+  const sr = document.getElementById('terms');
+  sr.replaceChildren(...words.slice(0, 100).map(m => { const li = document.createElement('li'); li.textContent = m.label; return li; }));
+  if (!hadWords) canvas.classList.add('in');
+  updateFocus();
+  requestRender();
+};
+
+function computeFit() {
+  if (!coreBox) return;
+  // keep the opening view clear of the header and footer floating over the cloud
+  const band = Math.max(document.querySelector('header').getBoundingClientRect().bottom, H - document.querySelector('footer').getBoundingClientRect().top);
+  fitScale = Math.min(1.5, (W - 32) / coreBox.w, (H - 2 * band - 16) / coreBox.h);
+}
+
+// ---- drawing. Only words inside the view are drawn; words smaller than a few screen pixels become faint dashes.
+function drawWords(c, cw, ch, dpr, s, ox, oy) {
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, cw, ch);
+  if (!ORDER.length) return;
+  c.setTransform(s * dpr, 0, 0, s * dpr, ox * dpr, oy * dpr);
+  c.textBaseline = 'top';
+  const x0 = -ox / s, y0 = -oy / s, x1 = (cw - ox) / s, y1 = (ch - oy) / s, tiny = 4 / s;
+  const lit = focusT ? WORD_OF.get(focusT.key) : null;
+  let font = '', fill = '', alpha = 1;
+  for (const m of ORDER) {
+    if (m.x > x1 || m.x + m.bw < x0 || m.y > y1 || m.y + m.bh < y0 || m === lit) continue;
+    const rel = relSet && relSet.has(m), a = focusT && !rel ? 0.32 : 1;
+    if (a !== alpha) c.globalAlpha = alpha = a;
+    const tx = m.x + PAD_X, ty = m.y + PAD_Y;
+    if (m.size < tiny) {
+      if (m.fill !== fill) c.fillStyle = fill = m.fill;
+      c.fillRect(tx, ty + m.size * 0.38, m.tw, m.size * 0.3);
+      continue;
+    }
+    if (m.font !== font) c.font = font = m.font;
+    if (m.top) {
+      c.fillStyle = pearl(c, m, tx); fill = '';
+      c.shadowColor = 'rgba(170, 200, 255, .12)'; c.shadowBlur = 14 * dpr;
+      c.fillText(m.label, tx, ty);
+      c.shadowBlur = 0;
+      continue;
+    }
+    const f = rel ? REL_FILL : m.fill;
+    if (f !== fill) c.fillStyle = fill = f;
+    c.fillText(m.label, tx, ty);
+  }
+  // the hovered or open word: split into its colours, like light through a prism
+  if (lit && !(lit.x > x1 || lit.x + lit.bw < x0 || lit.y > y1 || lit.y + lit.bh < y0)) {
+    const tx = lit.x + PAD_X, ty = lit.y + PAD_Y, d = lit.size * 0.025;
+    c.globalAlpha = 1; c.font = lit.font;
+    c.fillStyle = 'rgba(120, 255, 230, .3)'; c.fillText(lit.label, tx - d, ty);
+    c.fillStyle = 'rgba(255, 140, 210, .3)'; c.fillText(lit.label, tx + d, ty);
+    c.fillStyle = lit.top ? pearl(c, lit, tx) : '#ffffff';
+    c.shadowColor = 'rgba(190, 220, 255, .25)'; c.shadowBlur = 14 * dpr;
+    c.fillText(lit.label, tx, ty);
+    c.shadowBlur = 0;
+  }
+  c.globalAlpha = 1;
+}
+// headliners are pearl holograms, washed toward signal mint while fresh
+function pearl(c, m, tx) {
+  const g = c.createLinearGradient(tx, m.y, tx + m.tw, m.y + m.bh * 0.4);
+  g.addColorStop(0, m.fresh ? colorOf(1, m.fresh) : '#ffffff');
+  PEARL.forEach((p, i) => g.addColorStop(0.22 + i * 0.195, p));
+  return g;
+}
+
+// While zooming or dragging, the frame is one cached bitmap moved and scaled on the GPU; the crisp redraw waits
+// until the hand stops. The cache renders a margin around the view so short drags don't reveal empty edges.
+const cache = { el: document.createElement('canvas'), valid: false, s: 1, x: 0, y: 0, m: 0 };
+const cctx = cache.el.getContext('2d');
+let moving = false, frameReq = 0, idleTimer = 0;
+function requestRender() { if (!frameReq) frameReq = requestAnimationFrame(frame); }
+function frame() {
+  frameReq = 0;
+  if (moving) drawMoving();
+  else drawWords(ctx, W, H, DPR, view.s, W / 2 + view.x, H / 2 + view.y);
+  placePop();
+  document.getElementById('roZoom').textContent = (view.s / fitScale).toFixed(2) + '×';
+}
+function drawMoving() {
+  const cx = W / 2, cy = H / 2;
+  let k = view.s / cache.s;
+  // the part of the cached frame the view now needs; rebuild when it runs past the margin or the scale drifts far
+  const l = (-cx - view.x) / k + cx + cache.x, r = (W - cx - view.x) / k + cx + cache.x;
+  const t = (-cy - view.y) / k + cy + cache.y, b = (H - cy - view.y) / k + cy + cache.y, M = cache.m;
+  if (!cache.valid || k < 0.6 || k > 2.5 || l < -M || r > W + M || t < -M || b > H + M) {
+    cache.m = Math.round(Math.max(W, H) * 0.35);
+    cache.el.width = W + 2 * cache.m; cache.el.height = H + 2 * cache.m;
+    drawWords(cctx, cache.el.width, cache.el.height, 1, view.s, cache.m + cx + view.x, cache.m + cy + view.y);
+    Object.assign(cache, { valid: true, s: view.s, x: view.x, y: view.y });
+    k = 1;
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.setTransform(k * DPR, 0, 0, k * DPR, DPR * (cx + view.x - k * (cx + cache.x) - k * cache.m), DPR * (cy + view.y - k * (cy + cache.y) - k * cache.m));
+  ctx.drawImage(cache.el, 0, 0);
+}
+function beginMove() { moving = true; }
+function endMove() { moving = false; cache.valid = false; requestRender(); }
+
+// ---- zoom & pan: the view shows the cloud at view.s, shifted (view.x, view.y) px from the cloud's centre.
+// Until someone zooms or drags, each layout fits the strongest words (fitScale); after that, refreshes keep their view.
+const view = { s: 1, x: 0, y: 0, moved: false };
+const ZOOM_MIN = 0.01, ZOOM_MAX = 8;
+function applyView() { requestRender(); }
 // scale by k about a point (px from the cloud's centre), so whatever is under the cursor stays put
 function zoomAt(k, px = 0, py = 0) {
   const s = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, view.s * k));
@@ -572,14 +743,34 @@ function zoomAt(k, px = 0, py = 0) {
   view.x = px - (px - view.x) * k; view.y = py - (py - view.y) * k; view.s = s; view.moved = true;
   applyView();
 }
-function resetView() { Object.assign(view, { s: fitScale, x: 0, y: 0, moved: false }); applyView(); }
+// glide back to the opening view, then catch up on any refreshes that waited while exploring
+function resetView() {
+  const from = { ...view }, to = { s: fitScale, x: 0, y: 0 }, t0 = performance.now();
+  view.moved = false;
+  beginMove(); clearTimeout(idleTimer);
+  const step = now => {
+    const p = Math.min(1, (now - t0) / 450), e = 1 - Math.pow(1 - p, 3);
+    view.s = from.s * Math.pow(to.s / from.s, e); view.x = from.x + (to.x - from.x) * e; view.y = from.y + (to.y - from.y) * e;
+    applyView();
+    if (p < 1) requestAnimationFrame(step);
+    else { endMove(); if (stale && !pinned) layoutCloud(); }
+  };
+  requestAnimationFrame(step);
+}
 const fromCentre = e => { const r = cloudEl.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+// the word under a point on screen, if any (the strongest, should boxes touch)
+function wordAt(clientX, clientY) {
+  const wx = (clientX - W / 2 - view.x) / view.s, wy = (clientY - H / 2 - view.y) / view.s;
+  let best = null;
+  for (const m of HIT.get(Math.floor(wx / 64) * 1e5 + Math.floor(wy / 64)) || [])
+    if (wx >= m.x && wx <= m.x + m.bw && wy >= m.y && wy <= m.y + m.bh && (!best || m.rank < best.rank)) best = m;
+  return best;
+}
 
-let wheelTimer;
 cloudEl.addEventListener('wheel', e => {
   e.preventDefault();
-  cloudEl.classList.add('moving');
-  clearTimeout(wheelTimer); wheelTimer = setTimeout(() => cloudEl.classList.remove('moving'), 150);
+  beginMove();
+  clearTimeout(idleTimer); idleTimer = setTimeout(endMove, 160);
   const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;   // line-based wheels report lines, not px
   zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), ...fromCentre(e));   // ctrlKey = trackpad pinch: small deltas
 }, { passive: false });
@@ -603,7 +794,8 @@ cloudEl.addEventListener('pointermove', e => {
     const [sx, sy] = starts.get(e.pointerId), [x, y] = pointers.get(e.pointerId);
     if (pointers.size < 2 && Math.hypot(x - sx, y - sy) < 5) return;
     dragged = true;
-    cloudEl.classList.add('moving', 'dragging');
+    beginMove();
+    cloudEl.classList.add('dragging');
     for (const id of pointers.keys()) cloudEl.setPointerCapture(id);
   }
   const [bx, by] = centroid(before), [ax, ay] = centroid(after);
@@ -613,32 +805,40 @@ cloudEl.addEventListener('pointermove', e => {
 });
 const release = e => {
   pointers.delete(e.pointerId); starts.delete(e.pointerId);
-  if (!pointers.size) cloudEl.classList.remove('moving', 'dragging');
+  if (!pointers.size) { cloudEl.classList.remove('dragging'); if (moving && dragged) endMove(); }
 };
 cloudEl.addEventListener('pointerup', release);
 cloudEl.addEventListener('pointercancel', release);
 // the click that ends a drag shouldn't open a word or close an open card
 cloudEl.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
-cloudEl.addEventListener('dblclick', e => { if (!e.target.closest('.word')) resetView(); });
+cloudEl.addEventListener('click', e => {
+  const m = wordAt(e.clientX, e.clientY);
+  if (!m) return;   // empty space: the document handler closes any open card
+  e.stopPropagation();
+  if (pinned === m.t) hidePop(); else showPop(m.t);
+});
+cloudEl.addEventListener('dblclick', e => { if (!wordAt(e.clientX, e.clientY)) resetView(); });
 
-// floating: the cloud leans a few degrees toward the pointer, which carries a soft light (mouse only: touch has no hover).
-// Both move whole layers once per frame at most, so the words underneath never re-render.
-if (matchMedia('(hover: hover) and (pointer: fine)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  const tiltEl = document.getElementById('tilt'), lens = document.getElementById('lens');
-  let frame = 0, last = null;
+// hover (mouse only: touch has no hover): find the word under the pointer, and carry a soft light with it
+if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  const lens = document.getElementById('lens'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let hoverFrame = 0, last = null;
   cloudEl.addEventListener('pointermove', e => {
     last = e;
-    if (frame) return;
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      const r = cloudEl.getBoundingClientRect(), x = last.clientX - r.left, y = last.clientY - r.top;
-      const nx = x / r.width - 0.5, ny = y / r.height - 0.5;
-      tiltEl.style.transform = `perspective(1600px) rotateX(${(-ny * 5).toFixed(2)}deg) rotateY(${(nx * 7).toFixed(2)}deg)`;
-      lens.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
-      cloudEl.classList.add('lit');
+    if (hoverFrame) return;
+    hoverFrame = requestAnimationFrame(() => {
+      hoverFrame = 0;
+      if (!still) { lens.style.transform = `translate(${last.clientX.toFixed(0)}px, ${last.clientY.toFixed(0)}px)`; cloudEl.classList.add('lit'); }
+      if (pointers.size) return;   // dragging: leave the focus as it is
+      const m = wordAt(last.clientX, last.clientY), t = m ? m.t : null;
+      cloudEl.classList.toggle('over', !!m);
+      if (t !== hoverT) { hoverT = t; updateFocus(); }
     });
   });
-  cloudEl.addEventListener('pointerleave', () => { cloudEl.classList.remove('lit'); tiltEl.style.transform = ''; });
+  cloudEl.addEventListener('pointerleave', () => {
+    cloudEl.classList.remove('lit', 'over');
+    if (hoverT) { hoverT = null; updateFocus(); }
+  });
 }
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea')) return;
@@ -648,7 +848,14 @@ addEventListener('keydown', e => {
 });
 
 let resizeTimer;
-addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (pop.hidden) drawCloud(); }, 200); });
+addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    sizeCanvas(); computeFit();
+    if (!view.moved) Object.assign(view, { s: fitScale, x: 0, y: 0 });
+    cache.valid = false; requestRender();
+  }, 150);
+});
 
 const LABEL = { ok: 'Live', setup: 'Needs setup', err: 'Failing' };
 function summarize() {
@@ -673,11 +880,19 @@ const fontReady = Promise.race([
   document.fonts.load('600 20px "Space Grotesk"').catch(() => {}),
   new Promise(r => setTimeout(r, 1500)),
 ]);
-document.fonts.addEventListener('loadingdone', () => { if (pop.hidden) drawCloud(); });
+// a late font changes every word's width: lay out again (unless someone is mid-exploration)
+document.fonts.addEventListener('loadingdone', () => { if (lastList.length && !pinned && !view.moved) layoutCloud(); });
 
+// first visit: draw as soon as the quick sources answer instead of waiting on the slowest; the full cloud follows
+let earlyTimer = 0;
+const early = () => {
+  if (WORDS.length) return;
+  clearTimeout(earlyTimer);
+  earlyTimer = setTimeout(() => fontReady.then(() => { if (!WORDS.length && !pending) { summarize(); buildCloud(); } }), 400);
+};
 async function refresh() {
   await Promise.all(SOURCES.map(s => s.load()
-    .then(items => { STATE[s.id] = items; STATUS[s.id] = 'ok'; })
+    .then(items => { STATE[s.id] = items; STATUS[s.id] = 'ok'; early(); })
     .catch(e => { STATUS[s.id] = e.status === 503 ? 'setup' : 'err'; WHY[s.id] = e.message; })));   // stale items stay in STATE
   await fontReady;
   summarize();

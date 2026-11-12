@@ -8,8 +8,10 @@ Credentials come from the environment, never from the page:
   GTRENDS_GEO                              (optional; country code for Google Trends, default US; no key needed)
 Run: python3 server.py   (PORT env var overrides 8765)
 """
-import base64, json, os, re, threading, time
+import base64, html, json, os, re, threading, time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
+from itertools import zip_longest
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -109,7 +111,150 @@ def google_trends():
     return items[:60]
 
 
-ROUTES = {"/api/reddit": reddit, "/api/x": x_trends, "/api/gtrends": google_trends}
+# ---- US newsrooms, as RSS/Atom. Each group is one source in the cloud, so a story the news desks, the sports desks
+# and the entertainment desks are all covering gets the spread bonus. No keys; feeds that block bots were left out.
+FEED_GROUPS = {
+    "/api/news": [
+        ("NPR", "https://feeds.npr.org/1001/rss.xml"),
+        ("New York Times", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
+        ("Washington Post", "https://feeds.washingtonpost.com/rss/national"),
+        ("NBC News", "https://feeds.nbcnews.com/nbcnews/public/news"),
+        ("CBS News", "https://www.cbsnews.com/latest/rss/main"),
+        ("ABC News", "https://abcnews.go.com/abcnews/topstories"),
+        ("Fox News", "https://moxie.foxnews.com/google-publisher/latest.xml"),
+        ("Guardian US", "https://www.theguardian.com/us-news/rss"),
+        ("BBC US", "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"),
+        ("NY Post", "https://nypost.com/feed/"),
+        ("Newsweek", "https://www.newsweek.com/rss"),
+        ("The Atlantic", "https://www.theatlantic.com/feed/all/"),
+        ("Vox", "https://www.vox.com/rss/index.xml"),
+        ("LA Times", "https://www.latimes.com/local/rss2.0.xml"),
+        ("Time", "https://time.com/feed/"),
+    ],
+    "/api/politics": [
+        ("Politico", "https://rss.politico.com/politics-news.xml"),
+        ("The Hill", "https://thehill.com/feed/"),
+        ("Axios", "https://api.axios.com/feed/"),
+        ("NBC Politics", "https://feeds.nbcnews.com/nbcnews/public/politics"),
+        ("NPR Politics", "https://feeds.npr.org/1014/rss.xml"),
+        ("Fox Politics", "https://moxie.foxnews.com/google-publisher/politics.xml"),
+    ],
+    "/api/sports": [
+        ("CBS Sports", "https://www.cbssports.com/rss/headlines/"),
+        ("Yahoo Sports", "https://sports.yahoo.com/rss/"),
+        ("SB Nation", "https://www.sbnation.com/rss/index.xml"),
+        ("Fox Sports", "https://api.foxsports.com/v2/content/optimized-rss?partnerKey=MB0Wehpmuj2lUhuRhQaafhBjAJqaPU244mlTDK1i&size=30"),
+    ],
+    "/api/entertainment": [
+        ("Variety", "https://variety.com/feed/"),
+        ("Hollywood Reporter", "https://www.hollywoodreporter.com/feed/"),
+        ("Billboard", "https://www.billboard.com/feed/"),
+        ("TMZ", "https://www.tmz.com/rss.xml"),
+        ("E! News", "https://www.eonline.com/syndication/feeds/rssfeeds/topstories.xml"),
+        ("Deadline", "https://deadline.com/feed/"),
+        ("IGN", "https://feeds.feedburner.com/ign/all"),
+        ("Polygon", "https://www.polygon.com/rss/index.xml"),
+    ],
+    "/api/business": [
+        ("CNBC", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
+        ("The Verge", "https://www.theverge.com/rss/index.xml"),
+        ("TechCrunch", "https://techcrunch.com/feed/"),
+        ("Business Insider", "https://feeds.businessinsider.com/custom/all"),
+        ("Wired", "https://www.wired.com/feed/rss"),
+        ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
+        ("Engadget", "https://www.engadget.com/rss.xml"),
+    ],
+    "/api/science": [
+        ("NYT Science", "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"),
+        ("NYT Health", "https://rss.nytimes.com/services/xml/rss/nyt/Health.xml"),
+        ("NPR Health", "https://feeds.npr.org/1128/rss.xml"),
+        ("ScienceAlert", "https://www.sciencealert.com/feed"),
+    ],
+}
+PER_FEED = 50
+ATOM = "{http://www.w3.org/2005/Atom}"
+
+
+def read_feed(url, limit=PER_FEED):
+    """[(title, link)] from an RSS 2.0 or Atom feed, newest first as published."""
+    req = Request(url, headers={"User-Agent": "Mozilla/5.0 " + UA})
+    with urlopen(req, timeout=10) as r:
+        root = ET.fromstring(r.read())
+    out = []
+    for it in root.iter("item"):
+        title, link = html.unescape((it.findtext("title") or "").strip()), (it.findtext("link") or "").strip()
+        if title and link.startswith("http"):
+            out.append((title, link))
+    for e in root.iter(ATOM + "entry"):
+        title = html.unescape((e.findtext(ATOM + "title") or "").strip())
+        el = e.find(ATOM + "link")
+        link = el.get("href", "") if el is not None else ""
+        if title and link.startswith("http"):
+            out.append((title, link))
+    return out[:limit]
+
+
+def feed_group(feeds):
+    """Fetch a group's feeds in parallel and interleave them, so every outlet's top stories rank near the top
+    (items carry no counts, so their weight in the cloud comes from rank). Outlets that fail are skipped."""
+    with ThreadPoolExecutor(max_workers=len(feeds)) as pool:
+        results = list(pool.map(lambda f: _try(read_feed, f[1]), feeds))
+    per = [[{"title": t, "url": u, "meta": name} for t, u in items] for (name, _), items in zip(feeds, results) if items]
+    if not per:
+        raise URLError("no feed in this group answered")
+    return [x for row in zip_longest(*per) for x in row if x]
+
+
+def _try(fn, *args):
+    try:
+        return fn(*args)
+    except (HTTPError, URLError, TimeoutError, ET.ParseError, OSError, ValueError):
+        return []
+
+
+GNEWS = "https://news.google.com/rss{}?hl=en-US&gl=US&ceid=US:en"
+GNEWS_SECTIONS = ["", *(f"/headlines/section/topic/{t}" for t in ("NATION", "WORLD", "BUSINESS", "TECHNOLOGY", "ENTERTAINMENT", "SPORTS", "SCIENCE", "HEALTH"))]
+
+
+def google_news():
+    # Google News' US top stories plus every section: one headline per story cluster, written "Headline - Outlet"
+    with ThreadPoolExecutor(max_workers=len(GNEWS_SECTIONS)) as pool:
+        sections = list(pool.map(lambda sec: _try(read_feed, GNEWS.format(sec), 80), GNEWS_SECTIONS))
+    if not any(sections):
+        raise URLError("Google News didn't answer")
+    items, seen = [], set()
+    for title, link in (x for row in zip_longest(*sections) for x in row if x):
+        if title in seen:   # a story can lead more than one section
+            continue
+        seen.add(title)
+        head, _, outlet = title.rpartition(" - ")
+        items.append({"title": head or title, "url": link, "meta": outlet if head else "Google News"})
+    return items
+
+
+def polymarket():
+    # the markets people are putting the most money on in the last day: a read on what America is betting about
+    d = http_json("https://gamma-api.polymarket.com/events?active=true&closed=false&order=volume24hr&ascending=false&limit=50")   # 50 is the most it serves
+    return [
+        {"title": e["title"], "url": "https://polymarket.com/event/" + e["slug"], "meta": f"${e.get('volume24hr') or 0:,.0f} traded today", "value": e.get("volume24hr") or 0}
+        for e in d if e.get("title") and e.get("slug")
+    ]
+
+
+def bluesky():
+    # the public trends API answers from here even when the browser's direct call doesn't
+    d = http_json("https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrends?limit=25")   # 25 is the most it serves
+    return [
+        {"title": t["displayName"], "url": t["link"] if t["link"].startswith("http") else "https://bsky.app" + t["link"],
+         "meta": f"{t['postCount']:,} posts" if t.get("postCount") else "", "value": t.get("postCount") or 0}
+        for t in d.get("trends", []) if t.get("displayName") and t.get("link")
+    ]
+
+
+ROUTES = {"/api/reddit": reddit, "/api/x": x_trends, "/api/gtrends": google_trends, "/api/gnews": google_news,
+          "/api/polymarket": polymarket, "/api/bsky": bluesky,
+          **{path: (lambda feeds=feeds: feed_group(feeds)) for path, feeds in FEED_GROUPS.items()}}
+TTL = {**{path: 300 for path in FEED_GROUPS}, "/api/gnews": 300}   # newsrooms update slowly; be polite
 
 # ---- first-seen times for cloud words, shared by every visitor (so "new" means new to the server, not to one page load)
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen.json")
@@ -149,7 +294,7 @@ def mark_seen(keys):
 def cached(path):
     with _lock:
         hit = _cache.get(path)
-        if hit and time.time() - hit[0] < CACHE_TTL:
+        if hit and time.time() - hit[0] < TTL.get(path, CACHE_TTL):
             return hit[1]
     items = ROUTES[path]()
     with _lock:
@@ -171,8 +316,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error(404)
         try:
             n = int(self.headers.get("Content-Length", 0))
-            keys = json.loads(self.rfile.read(min(n, 100_000)))["keys"]
-            keys = list({k for k in keys if isinstance(k, str) and 0 < len(k) <= 60})[:1000]
+            keys = json.loads(self.rfile.read(min(n, 800_000)))["keys"]
+            keys = list({k for k in keys if isinstance(k, str) and 0 < len(k) <= 60})[:8000]
         except (ValueError, KeyError, TypeError):
             return self.send_json(400, {"error": "expected {\"keys\": [strings]}"})
         self.send_json(200, mark_seen(keys))
