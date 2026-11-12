@@ -55,20 +55,6 @@
     background-size: 440px 400px; }
   #sky .stars.far { background-size: 230px 270px; background-position: 90px 140px; animation-duration: 13s; animation-direction: alternate-reverse; }
   @keyframes twinkle { from { opacity: .15; } to { opacity: .55; } }
-  /* the halo: a thin iridescent ring, wide soft bloom inside it, opening at load and then turning forever */
-  #sky .halo { position: absolute; left: 50%; top: 50%; width: min(86vmin, 920px); aspect-ratio: 1; translate: -50% -50%;
-    animation: iris 2.4s var(--ease) both; }
-  #sky .halo::before, #sky .halo::after { content: ""; position: absolute; inset: 0; border-radius: 50%; will-change: transform; }
-  #sky .halo::before { animation: spin 90s linear infinite;
-    background: conic-gradient(from 0deg, var(--p1), var(--p2), var(--p3), var(--p4), var(--p5), rgba(255, 241, 194, 0) 62%, rgba(185, 255, 240, 0) 80%, var(--p1));
-    -webkit-mask: radial-gradient(closest-side, transparent 97.2%, #000 97.8%, #000 98.6%, transparent 99.4%);
-            mask: radial-gradient(closest-side, transparent 97.2%, #000 97.8%, #000 98.6%, transparent 99.4%);
-    opacity: .75; filter: drop-shadow(0 0 10px rgba(200, 220, 255, .45)); }
-  #sky .halo::after { animation: spin 140s linear infinite reverse; opacity: .5;
-    background: conic-gradient(from 120deg, rgba(185, 255, 240, .16), rgba(168, 194, 255, .05), rgba(217, 184, 255, .16), rgba(255, 198, 227, .04), rgba(185, 255, 240, .16));
-    -webkit-mask: radial-gradient(closest-side, transparent 62%, #000 86%, transparent 97%);
-            mask: radial-gradient(closest-side, transparent 62%, #000 86%, transparent 97%); }
-  @keyframes iris { from { opacity: 0; scale: .55; } }
   @keyframes spin { to { transform: rotate(1turn); } }
   /* static finish: film grain and a vignette pulling the eye to the centre */
   #sky::before { content: ""; position: absolute; inset: 0; z-index: 2; background: radial-gradient(115% 90% at 50% 48%, transparent 52%, rgba(0, 0, 0, .7) 100%); }
@@ -76,35 +62,36 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
   /* ---- HUD: hairline corner brackets and live read-outs ---- */
-  .corner { position: fixed; z-index: 3; width: 22px; height: 22px; pointer-events: none; border: 0 solid rgba(200, 220, 255, .32); }
-  .corner.tl { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
-  .corner.tr { top: 12px; right: 12px; border-width: 1px 1px 0 0; }
-  .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 1px 1px; }
-  .corner.br { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+  .corner { position: fixed; z-index: 3; width: 14px; height: 14px; pointer-events: none; border: 0 solid rgba(200, 220, 255, .26); }
+  .corner.tl { top: 8px; left: 8px; border-width: 1px 0 0 1px; }
+  .corner.tr { top: 8px; right: 8px; border-width: 1px 1px 0 0; }
+  .corner.bl { bottom: 8px; left: 8px; border-width: 0 0 1px 1px; }
+  .corner.br { bottom: 8px; right: 8px; border-width: 0 1px 1px 0; }
 
-  /* ---- header ---- */
-  header { display: flex; align-items: center; justify-content: space-between; gap: 10px 20px; flex-wrap: wrap; padding: 24px 0 0; }
-  .brand { display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; }
-  h1 { margin: 0; display: flex; align-items: center; gap: 13px; font: 300 14px/1 var(--brand); letter-spacing: .5em; text-transform: uppercase; }
+  /* ---- header: one slim line ---- */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; padding: 13px 0 0; }
+  .brand { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
+  h1 { margin: 0; display: flex; align-items: center; gap: 9px; font: 300 11.5px/1 var(--brand); letter-spacing: .42em; text-transform: uppercase; }
   h1 .t { background: var(--spectrum); -webkit-background-clip: text; background-clip: text; color: transparent; }
   /* the mark: a pearl ring turning around a still point */
-  .mark { position: relative; width: 20px; height: 20px; flex: none; }
+  .mark { position: relative; width: 15px; height: 15px; flex: none; }
   .mark::before { content: ""; position: absolute; inset: 0; border-radius: 50%; will-change: transform; animation: spin 6s linear infinite;
     background: conic-gradient(var(--p1), var(--p2), var(--p3), var(--p4), var(--p5), rgba(255, 241, 194, 0) 75%, var(--p1));
     -webkit-mask: radial-gradient(closest-side, transparent 72%, #000 78%); mask: radial-gradient(closest-side, transparent 72%, #000 78%); }
-  .mark::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px 1px rgba(200, 230, 255, .9); }
-  .brand p { margin: 0; color: var(--ink3); font: 400 10px/1.4 var(--mono); letter-spacing: .24em; text-transform: uppercase; }
-  .status { display: flex; align-items: center; gap: 9px; padding: 7px 13px 7px 11px; border-radius: 999px; color: var(--ink2);
+  .mark::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 1px rgba(200, 230, 255, .8); }
+  .brand p { margin: 0; color: var(--ink3); font: 400 8.5px/1.4 var(--mono); letter-spacing: .22em; text-transform: uppercase; }
+  @media (max-width: 640px) { .brand p { display: none; } }
+  .status { display: flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border-radius: 999px; color: var(--ink2);
     background: var(--glass); border: 1px solid var(--hair); -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
-    font: 400 10px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
-  .status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink3); }
+    font: 400 8.5px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .status i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink3); }
   .status.live { color: var(--ink); }
   .status.live i { background: var(--signal); box-shadow: 0 0 10px var(--signal); animation: pulse 2.6s ease-out infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 10px var(--signal), 0 0 0 0 rgba(125, 255, 212, .5); } 70%, 100% { box-shadow: 0 0 10px var(--signal), 0 0 0 9px rgba(125, 255, 212, 0); } }
 
   /* ---- the cloud fills the whole window; header and footer float over it, faded in by dark bands ---- */
   #cloud { position: fixed; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
-  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 96px; z-index: 2; pointer-events: none; }
+  #cloud::before, #cloud::after { content: ""; position: absolute; left: 0; right: 0; height: 58px; z-index: 2; pointer-events: none; }
   #cloud::before { top: 0; background: linear-gradient(rgba(2, 3, 9, .9) 25%, rgba(2, 3, 9, 0)); }
   #cloud::after { bottom: 0; background: linear-gradient(rgba(2, 3, 9, 0), rgba(2, 3, 9, .9) 75%); }
   #cloud.dragging { cursor: grabbing; }
@@ -119,7 +106,7 @@
   /* the pointer is a light: a soft pearl glow that brightens whatever words it passes over */
   #lens { position: absolute; left: 0; top: 0; z-index: 1; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%; pointer-events: none;
     opacity: 0; mix-blend-mode: screen; will-change: transform, opacity; transition: opacity .6s;
-    background: radial-gradient(closest-side, rgba(200, 225, 255, .2), rgba(185, 255, 240, .07) 45%, transparent 72%); }
+    background: radial-gradient(closest-side, rgba(200, 225, 255, .08), rgba(185, 255, 240, .03) 45%, transparent 72%); }
   #cloud.lit #lens { opacity: 1; }
   .msg { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; text-align: center; color: var(--ink2);
     font: 300 11px var(--mono); letter-spacing: .5em; text-transform: uppercase; animation: breathe 1.4s ease-in-out infinite alternate; }
@@ -135,38 +122,38 @@
   .word { --r: 0; --lo: rgb(120 138 190 / .58); --hi: #f4f7ff;
     position: absolute; left: 0; top: 0; margin: 0; padding: 0 .08em; background: none; border: 0; border-radius: 6px; cursor: pointer;
     font-family: var(--display); line-height: 1.05; white-space: nowrap; -webkit-tap-highlight-color: transparent;
-    color: color-mix(in oklab, var(--signal) calc(var(--fresh) * 100%), color-mix(in oklab, var(--hi) calc(var(--r) * 100%), var(--lo)));
+    color: color-mix(in oklab, var(--signal) calc(var(--fresh) * 50%), color-mix(in oklab, var(--hi) calc(var(--r) * 100%), var(--lo)));
     transition: transform .7s var(--ease), opacity .25s, color 1s, text-shadow .2s, filter .2s; animation: word-in .6s var(--ease) backwards; }
   /* the strongest words are pearl holograms, washed toward signal mint while fresh */
   .word.top { color: transparent; -webkit-background-clip: text; background-clip: text;
-    background-image: linear-gradient(100deg, color-mix(in oklab, var(--signal) calc(var(--fresh) * 100%), #ffffff) 0%, var(--p1) 22%, var(--p2) 44%, var(--p3) 66%, var(--p4) 86%, var(--p5));
-    filter: drop-shadow(0 0 16px rgba(170, 200, 255, .22)); }
+    background-image: linear-gradient(100deg, color-mix(in oklab, var(--signal) calc(var(--fresh) * 50%), #ffffff) 0%, var(--p1) 22%, var(--p2) 44%, var(--p3) 66%, var(--p4) 86%, var(--p5));
+    filter: drop-shadow(0 0 14px rgba(170, 200, 255, .12)); }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
   /* hover: the word splits into its colours, like light through a prism */
   .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: #fff; outline: none;
-    text-shadow: -.06em 0 0 rgba(120, 255, 230, .55), .06em 0 0 rgba(255, 140, 210, .55), 0 0 22px rgba(190, 220, 255, .55); }
+    text-shadow: -.025em 0 0 rgba(120, 255, 230, .3), .025em 0 0 rgba(255, 140, 210, .3), 0 0 14px rgba(190, 220, 255, .25); }
   .word.top:hover, .word.top:focus-visible, .word.top[aria-expanded="true"] { color: transparent; text-shadow: none;
-    filter: drop-shadow(-2px 0 0 rgba(120, 255, 230, .45)) drop-shadow(2px 0 0 rgba(255, 140, 210, .45)) drop-shadow(0 0 22px rgba(200, 225, 255, .55)); }
+    filter: drop-shadow(-1px 0 0 rgba(120, 255, 230, .3)) drop-shadow(1px 0 0 rgba(255, 140, 210, .3)) drop-shadow(0 0 14px rgba(200, 225, 255, .25)); }
   .word:focus-visible { outline: 1px solid var(--p1); outline-offset: 4px; }
-  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .1; }
-  #cloud.focus .word.rel:not(.top):not([aria-expanded="true"]) { color: var(--p1); }
+  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .32; }
+  #cloud.focus .word.rel:not(.top):not([aria-expanded="true"]) { color: #e3eaff; }
   @keyframes word-in { from { opacity: 0; scale: .9; } }   /* no blur: filtering hundreds of words at once stalls the first draw */
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
   /* ---- footer: sources as hairline chips, plus the read-out ---- */
-  footer { display: flex; align-items: center; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; padding: 12px 0 24px; color: var(--ink2); }
-  #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
-  #sources li { display: flex; align-items: center; gap: 7px; padding: 5px 10px 5px 9px; border-radius: 999px; background: rgba(8, 11, 26, .72); border: 1px solid var(--hair);
-    font: 400 9.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink2); }
-  #sources li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 8px var(--signal); }
+  footer { display: flex; align-items: center; justify-content: space-between; gap: 6px 20px; flex-wrap: wrap; padding: 6px 0 13px; color: var(--ink2); }
+  #sources { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; }
+  #sources li { display: flex; align-items: center; gap: 5px; padding: 3px 7px 3px 6px; border-radius: 999px; background: rgba(8, 11, 26, .72); border: 1px solid var(--hair);
+    font: 400 8px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink2); }
+  #sources li::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 6px var(--signal); }
   #sources li:not(.ok) { color: var(--ink3); border-color: rgba(190, 210, 255, .07); }
   #sources li:not(.ok)::before { background: none; box-shadow: none; border: 1px solid var(--ink3); }
   #sources li.err { text-decoration: line-through; }
   #sources li.err::before { border-color: var(--p4); }
-  .readout { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin: 0; color: var(--ink3); font: 400 9.5px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; text-align: right; }
+  .readout { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin: 0; color: var(--ink3); font: 400 8px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; text-align: right; }
   .readout b { color: var(--ink2); font-weight: 500; font-variant-numeric: tabular-nums; }
-  .hint { opacity: .8; letter-spacing: .06em; text-transform: none; }
+  .hint { opacity: .75; letter-spacing: .06em; text-transform: none; }
   @media (max-width: 640px) { .readout { align-items: flex-start; text-align: left; } }
 
   /* ---- story card: frosted glass with a pearl edge ---- */
@@ -184,6 +171,17 @@
     color: var(--ink3); font: 400 9.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
   #pop .ph b { font: 500 21px/1.2 var(--display); letter-spacing: -.01em; text-transform: none; white-space: normal; overflow-wrap: anywhere;
     background: var(--spectrum); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  /* the score: total points, what it's made of, and each source's share */
+  #pop .score { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 7px; padding: 0 8px 10px; }
+  #pop .score strong { font: 600 30px/1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+  #pop .score > span { color: var(--ink3); font: 400 9.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  #pop .score em { flex-basis: 100%; margin-top: 5px; font: 400 9.5px/1.4 var(--mono); font-style: normal; letter-spacing: .06em; color: var(--ink3); }
+  #pop .bars { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px 10px; margin: 0 8px 8px; padding-bottom: 12px; border-bottom: 1px solid var(--hair);
+    font: 400 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink2); }
+  #pop .bars .track { height: 3px; border-radius: 2px; background: rgba(190, 210, 255, .08); overflow: hidden; }
+  #pop .bars .track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--p1), var(--p2), var(--p3)); }
+  #pop .bars b { color: var(--ink); font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+  #pop li small .pts { float: right; margin-left: 8px; color: var(--p1); font-style: normal; font-variant-numeric: tabular-nums; }
   #pop ul { list-style: none; margin: 0; padding: 0; }
   #pop li a { display: block; padding: 8px 10px; border-radius: 10px; color: var(--ink); text-decoration: none; transition: background .15s, box-shadow .15s; }
   #pop li a:hover, #pop li a:focus-visible { background: rgba(185, 255, 240, .06); box-shadow: inset 2px 0 0 var(--p1); outline: none; }
@@ -194,7 +192,7 @@
 </style>
 </head>
 <body>
-<div id="sky" aria-hidden="true"><div class="aurora"></div><div class="aurora b"></div><div class="stars far"></div><div class="stars"></div><div class="halo"></div></div>
+<div id="sky" aria-hidden="true"><div class="aurora"></div><div class="aurora b"></div><div class="stars far"></div><div class="stars"></div></div>
 <div class="corner tl" aria-hidden="true"></div><div class="corner tr" aria-hidden="true"></div><div class="corner bl" aria-hidden="true"></div><div class="corner br" aria-hidden="true"></div>
 <div class="wrap">
   <header>
@@ -234,7 +232,7 @@ const SOURCES = [
   { id: 'hn', name: 'Hacker News', async load() {
       const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 100);
       const items = await Promise.all(ids.map(id => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
-      return items.filter(Boolean).map(i => ({ title: i.title, url: i.url || `https://news.ycombinator.com/item?id=${i.id}`, meta: `${i.score} pts · ${ago(i.time)}`, value: i.score }));
+      return items.filter(Boolean).map(i => ({ title: i.title, url: i.url || `https://news.ycombinator.com/item?id=${i.id}`, meta: `▲ ${fmt(i.score)} · ${ago(i.time)}`, value: i.score }));
   }},
   { id: 'gh', name: 'GitHub', async load() {
       const since = new Date(Date.now() - 7*864e5).toISOString().slice(0, 10);
@@ -306,23 +304,45 @@ function showPop(t, el) {
   setFocus(t);
   pop.replaceChildren();
   const n = t.items.length, shown = t.items.slice(0, 5);
+  // points = the word's score x100: each story adds its pull (0.35-1, see buildCloud), times the spread bonus for extra sources
+  const spread = 1 + 0.5 * (t.sources.size - 1), pts = w => Math.round(w * spread * 100);
+  const rank = lastList.indexOf(t) + 1;
+  // each source's share of the points; the total is their sum, so the numbers on the card always add up
+  const bySource = new Map();
+  for (const { id, w } of t.items) bySource.set(id, (bySource.get(id) || 0) + pts(w));
   const head = document.createElement('div'); head.className = 'ph';
   const b = document.createElement('b'); b.textContent = t.label;
-  const count = document.createElement('span');
-  count.textContent = `${n} mention${n > 1 ? 's' : ''} · ${t.sources.size} source${t.sources.size > 1 ? 's' : ''}`;
-  head.append(b, count);
+  const where = document.createElement('span'); where.textContent = rank ? `#${rank} of ${lastList.length}` : '';
+  head.append(b, where);
+  const score = document.createElement('div'); score.className = 'score';
+  const total = document.createElement('strong'); total.textContent = [...bySource.values()].reduce((s, p) => s + p, 0).toLocaleString();
+  const unit = document.createElement('span'); unit.textContent = 'points';
+  const why = document.createElement('em');
+  why.textContent = `${n} mention${n > 1 ? 's' : ''} · ${t.sources.size} source${t.sources.size > 1 ? 's' : ''}` + (spread > 1 ? ` · ×${spread.toFixed(1)} spread bonus` : '');
+  score.append(total, unit, why);
+  const bars = document.createElement('div'); bars.className = 'bars';
+  const most = Math.max(...bySource.values());
+  for (const [id, p] of [...bySource].sort((x, y) => y[1] - x[1])) {
+    const name = document.createElement('span'); name.textContent = SRC_NAME[id];
+    const track = document.createElement('span'); track.className = 'track';
+    const fill = document.createElement('i'); fill.style.width = (p / most * 100).toFixed(1) + '%';
+    track.appendChild(fill);
+    const val = document.createElement('b'); val.textContent = p.toLocaleString();
+    bars.append(name, track, val);
+  }
   const ul = document.createElement('ul');
-  for (const { it, id } of shown) {
+  for (const { it, id, w } of shown) {
     const li = document.createElement('li');
     const a = document.createElement('a');
     a.href = it.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
     const title = document.createElement('span'); title.textContent = it.title;
     const sm = document.createElement('small');
     const src = document.createElement('b'); src.textContent = SRC_NAME[id];
-    sm.append(src, it.meta ? ' · ' + it.meta : '');
+    const add = document.createElement('i'); add.className = 'pts'; add.textContent = '+' + pts(w);
+    sm.append(add, src, it.meta ? ' · ' + it.meta : '');
     a.append(title, sm); li.appendChild(a); ul.appendChild(li);
   }
-  pop.append(head, ul);
+  pop.append(head, score, bars, ul);
   if (n > shown.length) { const more = document.createElement('div'); more.className = 'more'; more.textContent = `+ ${n - shown.length} more`; pop.appendChild(more); }
   pop.classList.toggle('pinned', pinned === el);
   pop.hidden = false;
@@ -332,7 +352,8 @@ function placePop(el) {
   const r = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
   const x = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, innerWidth - pw - 8));
   let y = r.bottom + 8;
-  if (y + ph > innerHeight - 8) y = Math.max(8, r.top - ph - 8);
+  const top = innerWidth < 600 ? 8 : document.querySelector('header').getBoundingClientRect().bottom + 6;   // stay clear of the header where there's room
+  if (y + ph > innerHeight - 8) y = Math.max(top, r.top - ph - 8);
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
 document.addEventListener('click', e => { if (!pop.contains(e.target)) { pinned = null; hidePop(true); } });
