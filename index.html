@@ -39,9 +39,9 @@
     transition: transform .7s var(--ease), opacity .25s, color .15s; animation: word-in .6s var(--ease) backwards; }
   .word.new { transition: none; }
   .word.out { opacity: 0; pointer-events: none; }
-  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ch, var(--ink)); outline: none; }
+  .word:hover, .word:focus-visible, .word[aria-expanded="true"] { color: var(--ink); outline: none; }
   .word:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; color: var(--cd, var(--c)); }
+  #cloud.focus .word:not([aria-expanded="true"]):not(.rel) { opacity: .22; }
   @keyframes word-in { from { opacity: 0; scale: .92; filter: blur(3px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 
@@ -82,7 +82,7 @@
   <div id="cloud"><div id="layer"></div><p id="msg" class="msg">Gathering headlines…</p></div>
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
-    <p class="hint">Bigger and darker = mentioned more, in more places · orange = newer · hover a word to see related ones, click for its stories</p>
+    <p class="hint">Bigger and darker = mentioned more, in more places · hover a word to see related ones, click for its stories</p>
   </footer>
 </div>
 
@@ -106,12 +106,12 @@ const SOURCES = [
   { id: 'hn', name: 'Hacker News', async load() {
       const ids = (await getJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 30);
       const items = await Promise.all(ids.map(id => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
-      return items.filter(Boolean).map(i => ({ title: i.title, url: i.url || `https://news.ycombinator.com/item?id=${i.id}`, meta: `${i.score} pts · ${ago(i.time)}`, value: i.score, time: i.time }));
+      return items.filter(Boolean).map(i => ({ title: i.title, url: i.url || `https://news.ycombinator.com/item?id=${i.id}`, meta: `${i.score} pts · ${ago(i.time)}`, value: i.score }));
   }},
   { id: 'gh', name: 'GitHub', async load() {
       const since = new Date(Date.now() - 7*864e5).toISOString().slice(0, 10);
       const j = await getJSON(`https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=30`);
-      return j.items.map(r => ({ title: `${r.full_name}${r.description ? ' — ' + r.description : ''}`, url: r.html_url, meta: '★ ' + fmt(r.stargazers_count), value: r.stargazers_count, time: Date.parse(r.created_at) / 1000 }));
+      return j.items.map(r => ({ title: `${r.full_name}${r.description ? ' — ' + r.description : ''}`, url: r.html_url, meta: '★ ' + fmt(r.stargazers_count), value: r.stargazers_count }));
   }},
   // Reddit and X go through server.py (they need credentials the browser must not hold).
   { id: 'reddit', name: 'Reddit', load: () => getJSON('/api/reddit') },
@@ -319,17 +319,7 @@ function drawCloud() {
     el.style.fontSize = (narrow ? 13 + 46 * r : 10 + 70 * r).toFixed(1) + 'px';   // flatter range on phones, so the top word doesn't shrink the rest
     el.style.fontWeight = Math.round(500 + 100 * r);
     el.style.letterSpacing = (-0.005 - 0.03 * r).toFixed(3) + 'em';
-    // newer = more orange: full colour for stories under ~2h old, fading to plain gray by a day.
-    // Feeds with no timestamps (Mastodon, Bluesky, Wikipedia, X) just stay gray.
-    const newest = Math.max(0, ...t.items.map(x => x.it.time || 0));
-    const hrs = (Date.now() / 1000 - newest) / 3600;
-    const fresh = newest ? Math.max(0, Math.min(1, 1 - (hrs - 2) / 22)) : 0;
-    const light = 67 - 23 * Math.sqrt(r);                  // bigger = darker, never near black
-    el.style.setProperty('--c', `hsl(24 ${(42 * fresh).toFixed(0)}% ${light.toFixed(0)}%)`);
-    // not related to the hovered word: an even lighter orange (on top of the fade)
-    el.style.setProperty('--cd', `hsl(24 ${(50 * fresh).toFixed(0)}% ${(light + 12 * fresh).toFixed(0)}%)`);
-    // hovered / open: a deep orange for new words, near-black for the rest
-    el.style.setProperty('--ch', `hsl(24 ${(75 * fresh).toFixed(0)}% ${(7 + 25 * fresh).toFixed(0)}%)`);
+    el.style.setProperty('--c', `hsl(0 0% ${(67 - 23 * Math.sqrt(r)).toFixed(0)}%)`);   // bigger = darker gray, never near black
     return el;
   });
 
