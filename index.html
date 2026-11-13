@@ -170,6 +170,21 @@
   #pop li small { display: block; margin-top: 4px; color: var(--ink3); font: 400 10px/1.3 var(--mono); }
   #pop li small b { color: var(--p1); font-weight: 500; letter-spacing: .12em; text-transform: uppercase; font-size: 9px; }
   #pop .more { padding: 6px 10px 4px; color: var(--ink3); font: 400 10px var(--mono); letter-spacing: .08em; }
+
+  /* ---- popping: a word can be set aside for this visit, so what it was crowding out gets the room ---- */
+  #pop .ph .side { display: flex; align-items: center; gap: 10px; }
+  .popit, #unpop { appearance: none; margin: 0; cursor: pointer; border-radius: 999px; background: rgba(8, 11, 26, .72); border: 1px solid var(--hair); color: var(--ink2);
+    font: 500 8.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; transition: color .15s, border-color .15s, box-shadow .15s; }
+  .popit { padding: 5px 9px; }
+  #pop .shut { appearance: none; display: grid; place-items: center; width: 26px; height: 26px; margin: -4px -2px -4px 0; padding: 0 0 1px; cursor: pointer; border-radius: 50%;
+    background: rgba(8, 11, 26, .72); border: 1px solid var(--hair); color: var(--ink2); font: 300 17px/1 var(--display); letter-spacing: 0; transition: color .15s, border-color .15s, box-shadow .15s; }
+  #pop .shut:hover, #pop .shut:focus-visible { color: var(--ink); border-color: var(--ink2); outline: none; }
+  #unpop { padding: 3px 8px; margin-right: 8px; font-size: 8px; }
+  #unpop[hidden] { display: none; }
+  .popit:hover, .popit:focus-visible, #unpop:hover, #unpop:focus-visible { color: var(--p4); border-color: var(--p4); box-shadow: 0 0 14px -4px var(--p4); outline: none; }
+  .burst { position: absolute; left: 0; top: 0; z-index: 1; margin: 0; pointer-events: none; white-space: nowrap;
+    background: var(--spectrum); -webkit-background-clip: text; background-clip: text; color: transparent; animation: burst .5s var(--ease) forwards; }
+  @keyframes burst { to { opacity: 0; scale: 1.3; filter: blur(10px); } }
 </style>
 </head>
 <body>
@@ -188,8 +203,8 @@
   <footer>
     <ul id="sources" aria-label="Sources"></ul>
     <div class="readout">
-      <span><b id="roTerms">0</b> terms · zoom <b id="roZoom">1.00×</b></span>
-      <span class="hint">Scroll or pinch to zoom · drag to move · double-click to reset · click a word for its stories</span>
+      <span><button id="unpop" type="button" hidden></button><b id="roTerms">0</b> terms · zoom <b id="roZoom">1.00×</b></span>
+      <span class="hint">Scroll or pinch to zoom · drag to move · double-click to reset · click a word for its stories · right-click to pop it</span>
     </div>
   </footer>
 </div>
@@ -309,7 +324,14 @@ function showPop(t) {
   const head = document.createElement('div'); head.className = 'ph';
   const b = document.createElement('b'); b.textContent = t.label;
   const where = document.createElement('span'); where.textContent = rank ? `#${rank.toLocaleString()} of ${lastList.length.toLocaleString()}` : '';
-  head.append(b, where);
+  const out = document.createElement('button'); out.type = 'button'; out.className = 'popit'; out.textContent = 'Pop';
+  out.title = 'Set this word aside for now, to see what it was crowding out';
+  out.addEventListener('click', e => { e.stopPropagation(); popTerm(t); });
+  const shut = document.createElement('button'); shut.type = 'button'; shut.className = 'shut'; shut.textContent = '×';
+  shut.title = 'Close'; shut.setAttribute('aria-label', 'Close');
+  shut.addEventListener('click', e => { e.stopPropagation(); hidePop(); });
+  const side = document.createElement('span'); side.className = 'side'; side.append(where, out, shut);
+  head.append(b, side);
   const score = document.createElement('div'); score.className = 'score';
   const total = document.createElement('strong'); total.textContent = [...bySource.values()].reduce((s, p) => s + p, 0).toLocaleString();
   const unit = document.createElement('span'); unit.textContent = 'points';
@@ -362,6 +384,60 @@ function placePop() {
 document.addEventListener('click', e => { if (!pop.contains(e.target)) hidePop(); });
 addEventListener('scroll', hidePop, { passive: true });
 
+// ---- popping: set a word aside for this visit (this tab), so what it was crowding out gets the room.
+// The next-biggest word becomes the new top and everything rescales against it.
+let popped = [];   // [{ label, keys }] in the order they went; keys are the single words behind a fused label
+try { popped = JSON.parse(sessionStorage.getItem('snapshot.popped')) || []; } catch {}
+const POPPED = new Set();
+const isPopped = t => t.key.split(' ').every(k => POPPED.has(k));
+function savePopped() {
+  POPPED.clear();
+  for (const p of popped) for (const k of p.keys) POPPED.add(k);
+  try { sessionStorage.setItem('snapshot.popped', JSON.stringify(popped)); } catch {}
+  const btn = document.getElementById('unpop');
+  btn.hidden = !popped.length;
+  btn.textContent = `${popped.length} popped · bring back`;
+  btn.title = popped.map(p => p.label).join(', ') + ' — click to bring them all back, or press Z for just the last one';
+}
+savePopped();
+// the word bursts where it stood; it's gone from the canvas at once, and the new layout follows
+function burst(m) {
+  const el = document.createElement('p');
+  el.className = 'burst'; el.textContent = m.label; el.setAttribute('aria-hidden', 'true');
+  el.style.font = fontOf(+(m.size * view.s).toFixed(1), m.weight); el.style.lineHeight = '1';
+  el.style.left = (W / 2 + view.x + view.s * (m.x + PAD_X)).toFixed(1) + 'px';
+  el.style.top = (H / 2 + view.y + view.s * (m.y + PAD_Y)).toFixed(1) + 'px';
+  cloudEl.appendChild(el);
+  setTimeout(() => el.remove(), 550);
+}
+let popTimer = 0;
+function popTerm(t) {
+  const m = WORD_OF.get(t.key);
+  if (m && !m.gone) { m.gone = true; burst(m); }
+  popped.push({ label: t.label, keys: t.key.split(' ') });
+  savePopped();
+  lastList = lastList.filter(x => x !== t);
+  if (hoverT === t) hoverT = null;
+  cloudEl.classList.remove('over');
+  if (pinned === t) hidePop(); else updateFocus();
+  cache.valid = false; requestRender();
+  queueLayout();
+}
+// a run of pops shares one new layout; it waits for an open card to close, then fits the view to what's left
+function queueLayout() {
+  clearTimeout(popTimer);
+  popTimer = setTimeout(() => { if (pinned) return queueLayout(); view.moved = false; layoutCloud(); }, 350);
+}
+function unpop(all) {
+  if (!popped.length) return;
+  if (all) popped = []; else popped.pop();
+  savePopped();
+  hidePop(); clearTimeout(popTimer);
+  view.moved = false;
+  buildCloud();
+}
+document.getElementById('unpop').addEventListener('click', e => { e.stopPropagation(); unpop(true); });
+
 // ---- score terms
 let lastList = [];
 const MAX_TERMS = 8000, PHONE_TERMS = 3000;
@@ -392,6 +468,7 @@ async function buildCloud() {
   let list = [...terms.values()];
   for (const t of list) { t.score *= 1 + 0.5 * (t.sources.size - 1); t.items.sort((a, b) => b.w - a.w); }
   list.sort((a, b) => b.score - a.score);
+  if (POPPED.size) list = list.filter(t => !isPopped(t));   // set aside for this visit (see popTerm)
   list = list.slice(0, MAX_TERMS);
   // fuse neighbours that always appear together ("Jensen" + "Huang" -> "Jensen Huang"); only the head of the list,
   // where words are big enough for it to matter, so this stays quick with thousands of terms
@@ -564,7 +641,7 @@ function layoutCloud() {
     if (measure.font !== font) measure.font = font;
     const tw = measure.measureText(t.label).width;
     w[i] = tw + PAD_X * 2; h[i] = size * 1.05 + PAD_Y * 2;
-    metas[i] = { t, label: t.label, r, size, font, tw, bw: w[i], bh: h[i], rank: i, top: i < (narrow ? 8 : 14) };
+    metas[i] = { t, label: t.label, r, size, weight, font, tw, bw: w[i], bh: h[i], rank: i, top: i < (narrow ? 8 : 14) };
   }
   const index = new Map(list.map((t, i) => [t.key, i]));
   const core = Math.min(CORE, n);
@@ -658,7 +735,7 @@ function drawWords(c, cw, ch, dpr, s, ox, oy) {
   const lit = focusT ? WORD_OF.get(focusT.key) : null;
   let font = '', fill = '', alpha = 1;
   for (const m of ORDER) {
-    if (m.x > x1 || m.x + m.bw < x0 || m.y > y1 || m.y + m.bh < y0 || m === lit) continue;
+    if (m.x > x1 || m.x + m.bw < x0 || m.y > y1 || m.y + m.bh < y0 || m === lit || m.gone) continue;
     const rel = relSet && relSet.has(m), a = focusT && !rel ? 0.32 : 1;
     if (a !== alpha) c.globalAlpha = alpha = a;
     const tx = m.x + PAD_X, ty = m.y + PAD_Y;
@@ -766,7 +843,7 @@ function wordAt(clientX, clientY) {
   const wx = (clientX - W / 2 - view.x) / view.s, wy = (clientY - H / 2 - view.y) / view.s;
   let best = null;
   for (const m of HIT.get(Math.floor(wx / 64) * 1e5 + Math.floor(wy / 64)) || [])
-    if (wx >= m.x && wx <= m.x + m.bw && wy >= m.y && wy <= m.y + m.bh && (!best || m.rank < best.rank)) best = m;
+    if (!m.gone && wx >= m.x && wx <= m.x + m.bw && wy >= m.y && wy <= m.y + m.bh && (!best || m.rank < best.rank)) best = m;
   return best;
 }
 
@@ -821,6 +898,13 @@ cloudEl.addEventListener('click', e => {
   if (pinned === m.t) hidePop(); else showPop(m.t);
 });
 cloudEl.addEventListener('dblclick', e => { if (!wordAt(e.clientX, e.clientY)) resetView(); });
+// right-click (or a long press) pops a word straight off the cloud
+cloudEl.addEventListener('contextmenu', e => {
+  const m = wordAt(e.clientX, e.clientY);
+  if (!m) return;
+  e.preventDefault();
+  popTerm(m.t);
+});
 
 // hover (mouse only: touch has no hover): find the word under the pointer, and carry a soft light with it
 if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
@@ -848,6 +932,7 @@ addEventListener('keydown', e => {
   if (e.key === '+' || e.key === '=') zoomAt(1.5);
   else if (e.key === '-') zoomAt(1 / 1.5);
   else if (e.key === '0') resetView();
+  else if (e.key === 'z' || e.key === 'Z') unpop(false);
 });
 
 let resizeTimer;
